@@ -6,14 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gram Shiksha</title>
     <meta name="description"
-        content="Gram Shiksha – Learn smarter, anywhere, anytime. Access schedules, live classes, study materials, and AI-powered learning tools." />
+        content="Gram Shiksha – Bridging the education gap for rural India. Live classes, AI doubt solver, career growth platform." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore-compat.js"></script>
 </head>
 
 <body>
@@ -23,10 +25,44 @@
         <div class="splash-content">
             <img src="logo.png" alt="Gram Shiksha Logo" class="logo-img splash-logo-img" />
             <h1 class="splash-title">Gram <span class="gradient-text">Shiksha</span></h1>
+            <p style="color:rgba(255,255,255,0.6); margin-top:0.5rem; font-size:0.9rem">Bridging Education for Rural India</p>
         </div>
     </div>
 
-    <!-- ===== LOGIN PAGE REMOVED ===== -->
+    <!-- ===== LOGIN PAGE ===== -->
+    <div class="login-wrapper" id="loginWrapper" style="display:none; position:fixed; inset:0; z-index:9000; background:var(--bg-color); justify-content:center; align-items:center;">
+        <div class="login-card" style="background:var(--card-bg); padding:2.5rem; border-radius:12px; box-shadow:0 10px 40px rgba(124,58,237,0.15); width:100%; max-width:400px; text-align:center; border:1px solid rgba(124,58,237,0.2); backdrop-filter:blur(20px);">
+            <div style="display:flex; justify-content:center; margin-bottom:1rem;">
+                <img src="logo.png" alt="Logo" style="width:80px; height:80px; border-radius:50%; box-shadow:0 0 15px rgba(124,58,237,0.5)">
+            </div>
+            <h2 id="authTitle" style="color:var(--text-color); margin-bottom:0.5rem">Welcome Back</h2>
+            <p id="authSubtitle" style="margin-bottom:1.5rem; color:var(--text-color); opacity:0.8">Sign in to continue</p>
+            
+            <form id="firebaseAuthForm" onsubmit="handleFirebaseAuth(event)">
+                <input type="text" id="fbName" placeholder="Full Name (For Signup)" style="display:none; width:100%; padding:0.8rem; margin-bottom:1rem; border:1px solid rgba(124,58,237,0.3); border-radius:8px; background:rgba(255,255,255,0.05); color:var(--text-color);">
+                <input type="email" id="fbEmail" placeholder="Email Address" required style="width:100%; padding:0.8rem; margin-bottom:1rem; border:1px solid rgba(124,58,237,0.3); border-radius:8px; background:rgba(255,255,255,0.05); color:var(--text-color);">
+                
+                <div class="pass-wrapper" style="position:relative; margin-bottom:1rem;">
+                    <input type="password" id="fbPassword" placeholder="Password" required style="width:100%; padding:0.8rem; border:1px solid rgba(124,58,237,0.3); border-radius:8px; background:rgba(255,255,255,0.05); color:var(--text-color);">
+                     <button type="button" class="eye-btn" onclick="togglePasswordVisibility('fbPassword', this)" style="color:var(--text-color);">👁️</button>
+                </div>
+                
+                <!-- Terms of Service checkbox -->
+                <div style="text-align:left; font-size:0.85rem; margin-bottom:1.5rem; color:var(--text-color);">
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;">
+                        <input type="checkbox" id="tosCheckbox" required>
+                        <span>I accept the <a href="#" style="color:var(--purple); font-weight:bold;">Terms of Condition</a></span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;" id="authSubmitBtn">Sign In</button>
+            </form>
+            <div style="margin-top:1.5rem; font-size:0.9rem; color:var(--text-color)">
+                <p id="authToggleText">New mentor/student? <a href="javascript:void(0)" onclick="toggleSignupMode()" style="color:var(--purple); font-weight:bold;">Sign Up</a></p>
+            </div>
+            <div id="authErrorMsg" style="color:#ef4444; margin-top:1rem; font-size:0.85rem; font-weight:600; min-height:20px;"></div>
+        </div>
+    </div>
 
     <!-- ===== NAVBAR ===== -->
     <nav class="navbar" id="navbar">
@@ -66,53 +102,141 @@
         </div>
 
         <ul class="menu-list" role="list">
-            <li>
+            <li class="student-only-nav">
                 <a href="#" class="menu-item active" id="nav-home" data-section="home" role="menuitem">
                     <span class="menu-icon">🏠</span>
                     <span class="menu-label">Home</span>
                     <span class="menu-arrow">›</span>
                 </a>
             </li>
-            <!-- Mentor-only item -->
+            <!-- Mentor-only items -->
             <li class="mentor-only-nav" style="display:none">
                 <a href="#" class="menu-item menu-item-mentor" id="nav-mentor" data-section="mentor" role="menuitem">
                     <span class="menu-icon">👨‍🏫</span>
-                    <span class="menu-label">Mentor Dashboard</span>
+                    <span class="menu-label">Mentor Home</span>
                     <span class="menu-arrow">›</span>
                 </a>
             </li>
-            <li>
-                <a href="#" class="menu-item" id="nav-schedule" data-section="schedule" role="menuitem">
-                    <span class="menu-icon">📅</span>
-                    <span class="menu-label">Schedule</span>
-                    <span class="menu-arrow">›</span>
-                </a>
-            </li>
-            <li>
-                <a href="#" class="menu-item" id="nav-joinclass" data-section="joinclass" role="menuitem">
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-live" data-section="mentor-live" role="menuitem">
                     <span class="menu-icon">🎥</span>
-                    <span class="menu-label">Join Class</span>
+                    <span class="menu-label">Live Sessions</span>
                     <span class="menu-arrow">›</span>
                 </a>
             </li>
-            <li>
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-assignments" data-section="mentor-assignments" role="menuitem">
+                    <span class="menu-icon">📝</span>
+                    <span class="menu-label">Assignments</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-materials" data-section="mentor-materials" role="menuitem">
+                    <span class="menu-icon">📚</span>
+                    <span class="menu-label">Materials</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-schedule" data-section="mentor-schedule" role="menuitem">
+                    <span class="menu-icon">📅</span>
+                    <span class="menu-label">Schedule Manage</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-attendance" data-section="mentor-attendance" role="menuitem">
+                    <span class="menu-icon">✅</span>
+                    <span class="menu-label">Attendance</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-permissions" data-section="mentor-permissions" role="menuitem">
+                    <span class="menu-icon">🤝</span>
+                    <span class="menu-label">Permissions</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor-aireschedule" data-section="mentor-aireschedule" role="menuitem">
+                    <span class="menu-icon">🤖</span>
+                    <span class="menu-label">AI Reschedule</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+
+            <!-- Student items -->
+            <li class="student-only-nav">
+                <a href="#" class="menu-item" id="nav-liveclass" data-section="liveclass" role="menuitem">
+                    <span class="menu-icon">🎥</span>
+                    <span class="menu-label">Live Classes</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="student-only-nav">
+                <a href="#" class="menu-item" id="nav-assignments" data-section="assignments" role="menuitem">
+                    <span class="menu-icon">📝</span>
+                    <span class="menu-label">Assignments</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="student-only-nav">
                 <a href="#" class="menu-item" id="nav-history" data-section="history" role="menuitem">
-                    <span class="menu-icon">📜</span>
+                    <span class="menu-icon">🕐</span>
                     <span class="menu-label">History</span>
                     <span class="menu-arrow">›</span>
                 </a>
             </li>
-            <li>
-                <a href="#" class="menu-item" id="nav-studymaterial" data-section="studymaterial" role="menuitem">
-                    <span class="menu-icon">📚</span>
-                    <span class="menu-label">Study Material</span>
+            <li class="student-only-nav">
+                <a href="#" class="menu-item" id="nav-aidoubt" data-section="aidoubt" role="menuitem">
+                    <span class="menu-icon">🤖</span>
+                    <span class="menu-label">AI Doubt Solver</span>
                     <span class="menu-arrow">›</span>
                 </a>
             </li>
-            <li>
-                <a href="#" class="menu-item" id="nav-progress" data-section="progress" role="menuitem">
-                    <span class="menu-icon">📊</span>
-                    <span class="menu-label">Student Progress</span>
+            <li class="student-only-nav">
+                <a href="#" class="menu-item" id="nav-settings" data-section="settings" role="menuitem">
+                    <span class="menu-icon">⚙️</span>
+                    <span class="menu-label">Settings</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+
+            <!-- Admin items -->
+            <li class="admin-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-admin" id="nav-admin-overview" data-section="admin-overview" role="menuitem">
+                    <span class="menu-icon">👑</span>
+                    <span class="menu-label">Overview</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="admin-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-admin" id="nav-admin-users" data-section="admin-users" role="menuitem">
+                    <span class="menu-icon">👥</span>
+                    <span class="menu-label">Users</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="admin-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-admin" id="nav-admin-auth" data-section="admin-auth" role="menuitem">
+                    <span class="menu-icon">🔐</span>
+                    <span class="menu-label">Authentication</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="admin-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-admin" id="nav-admin-activity" data-section="admin-activity" role="menuitem">
+                    <span class="menu-icon">⚡</span>
+                    <span class="menu-label">Activity Log</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li class="admin-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-admin" id="nav-admin-reports" data-section="admin-reports" role="menuitem">
+                    <span class="menu-icon">📈</span>
+                    <span class="menu-label">Reports</span>
                     <span class="menu-arrow">›</span>
                 </a>
             </li>
@@ -127,7 +251,8 @@
         </ul>
 
         <div class="menu-footer">
-            <p>v1.0 • Gram Shiksha</p>
+            <p>v2.0 • Gram Shiksha</p>
+            <p style="font-size:0.7rem; opacity:0.5">© 2025 Gram Shiksha. All rights reserved.</p>
         </div>
     </aside>
 
@@ -135,6 +260,238 @@
     <main class="main-content" id="mainContent">
 
         <!-- AUTH SECTION REMOVED -->
+        
+        <!-- ===== ADMIN OVERVIEW ===== -->
+        <section class="section" id="section-admin-overview">
+            <div class="mentor-dashboard-header">
+                <div class="mdb-left">
+                    <div class="mdb-avatar">👑</div>
+                    <div>
+                        <h1 class="mdb-title">Admin <span class="gradient-text">Overview</span></h1>
+                        <p class="mdb-sub">Platform metrics & health status (View Only)</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mentor-stats-row">
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#7c3aed,#ec4899)">
+                    <div class="msc-icon">👥</div>
+                    <div class="msc-val" id="adminTotalUsers">1,245</div>
+                    <div class="msc-label">Registered Users</div>
+                </div>
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#0ea5e9,#06b6d4)">
+                    <div class="msc-icon">🔴</div>
+                    <div class="msc-val" id="adminActiveSessions">12</div>
+                    <div class="msc-label">Active Live Sessions</div>
+                </div>
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#10b981,#0ea5e9)">
+                    <div class="msc-icon">📚</div>
+                    <div class="msc-val" id="adminStudyMaterials">842</div>
+                    <div class="msc-label">Study Materials</div>
+                </div>
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#f59e0b,#f43f5e)">
+                    <div class="msc-icon">📅</div>
+                    <div class="msc-val" id="adminClassesWeek">145</div>
+                    <div class="msc-label">Classes This Week</div>
+                </div>
+            </div>
+
+            <div class="mentor-grid" style="margin-top:2rem">
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🛡️</span>
+                            <h3>Platform Health Indicators</h3>
+                        </div>
+                        <div class="posted-sessions-list">
+                            <div class="posted-session-item" style="border-left: 4px solid #10b981;">
+                                <div class="psi-left">
+                                    <div class="psi-info">
+                                        <strong>Server Status</strong>
+                                        <span style="color:#10b981">Optimal (99.9% Uptime)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="posted-session-item" style="border-left: 4px solid #f59e0b;">
+                                <div class="psi-left">
+                                    <div class="psi-info">
+                                        <strong>Connectivity Warnings</strong>
+                                        <span style="color:#f59e0b">Moderate latency detected in Region B</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="posted-session-item" style="border-left: 4px solid #10b981;">
+                                <div class="psi-left">
+                                    <div class="psi-info">
+                                        <strong>Database Load</strong>
+                                        <span style="color:#10b981">Low (12% usage)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== ADMIN USERS ===== -->
+        <section class="section" id="section-admin-users">
+            <div class="page-header" style="--header-color: #0ea5e9">
+                <div class="page-header-icon">👥</div>
+                <h2>User Monitoring</h2>
+                <p>View all mentor and student accounts (Read Only)</p>
+            </div>
+            
+            <div class="mentor-card">
+                <div class="mentor-card-header" style="justify-content: space-between; display: flex;">
+                    <div>
+                        <span class="mc-header-icon">🔍</span>
+                        <h3>All Users</h3>
+                    </div>
+                    <div class="search-bar" style="margin: 0; min-width: 250px;">
+                        <input type="text" placeholder="Search users..." class="search-input" style="padding: 0.5rem;" oninput="filterAdminUsers(this.value)" />
+                    </div>
+                </div>
+                <div style="overflow-x: auto; margin-top: 1rem;">
+                    <table class="attendance-table" id="adminUsersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Last Login</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminUsersList">
+                            <!-- JS Populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== ADMIN AUTH ===== -->
+        <section class="section" id="section-admin-auth">
+            <div class="page-header" style="--header-color: #f43f5e">
+                <div class="page-header-icon">🔐</div>
+                <h2>Authentication Monitoring</h2>
+                <p>Track login attempts and active sessions</p>
+            </div>
+            
+            <div class="mentor-grid">
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">⚡</span>
+                            <h3>Login Activity Log</h3>
+                        </div>
+                        <div class="student-activity-list" id="adminAuthLogs">
+                            <!-- JS Populated -->
+                        </div>
+                    </div>
+                </div>
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🟢</span>
+                            <h3>Current Active Sessions</h3>
+                        </div>
+                        <div class="student-activity-list" id="adminActiveSessionsList">
+                            <!-- JS Populated -->
+                        </div>
+                    </div>
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header" style="color:#f43f5e">
+                            <span class="mc-header-icon">⚠️</span>
+                            <h3>Suspicious Activity</h3>
+                        </div>
+                        <div class="student-activity-list" id="adminSuspiciousActivity">
+                            <!-- JS Populated -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== ADMIN ACTIVITY ===== -->
+        <section class="section" id="section-admin-activity">
+            <div class="page-header" style="--header-color: #7c3aed">
+                <div class="page-header-icon">⚡</div>
+                <h2>Platform Activity Log</h2>
+                <p>Real-time feed of all actions</p>
+            </div>
+            
+            <div class="mentor-card">
+                <div class="mentor-card-header" style="justify-content: space-between; display: flex;">
+                    <div>
+                        <span class="mc-header-icon">📜</span>
+                        <h3>Global Event Feed</h3>
+                    </div>
+                    <div>
+                        <select id="adminActivityFilter" style="padding:0.5rem; background:rgba(255,255,255,0.05); color:var(--text-color); border-radius:5px; border:1px solid rgba(124,58,237,0.3);" onchange="filterAdminActivity()">
+                            <option value="all">All Roles</option>
+                            <option value="mentor">Mentors</option>
+                            <option value="student">Students</option>
+                            <option value="system">System (AI/Bot)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="student-activity-list" id="adminGlobalActivityLog">
+                    <!-- JS Populated -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== ADMIN REPORTS ===== -->
+        <section class="section" id="section-admin-reports">
+            <div class="page-header" style="--header-color: #10b981">
+                <div class="page-header-icon">📈</div>
+                <h2>Platform Reports</h2>
+                <p>Exportable platform statistics</p>
+            </div>
+            
+            <div class="mentor-grid">
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📊</span>
+                            <h3>Attendance Summary</h3>
+                        </div>
+                        <p class="text-muted" style="margin-bottom:1rem">Generate summary across all classes.</p>
+                        <button class="btn btn-outline" style="width:100%" onclick="showToast('✅ Exporting Attendance Report (CSV)...')">Export CSV ⬇</button>
+                    </div>
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🎯</span>
+                            <h3>Student Engagement Stats</h3>
+                        </div>
+                        <p class="text-muted" style="margin-bottom:1rem">View students who attend regularly.</p>
+                        <button class="btn btn-outline" style="width:100%" onclick="showToast('✅ Exporting Engagement Report (PDF)...')">Export PDF ⬇</button>
+                    </div>
+                </div>
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📡</span>
+                            <h3>Connectivity Issue Frequency</h3>
+                        </div>
+                        <div class="progress-overview" style="display:flex; flex-direction:column; gap:1rem;">
+                            <div class="progress-stat-card" style="width:100%; border-left:4px solid #f43f5e">
+                                <div><strong>High Drop Rate</strong></div>
+                                <div class="text-muted" style="font-size:0.85rem">Regions with >10% drops</div>
+                                <div style="font-size:1.5rem; font-weight:700; color:#f43f5e">3 Zones</div>
+                            </div>
+                            <div class="progress-stat-card" style="width:100%; border-left:4px solid #f59e0b">
+                                <div><strong>AI Reschedules</strong></div>
+                                <div class="text-muted" style="font-size:0.85rem">Auto-rescheduled classes</div>
+                                <div style="font-size:1.5rem; font-weight:700; color:#f59e0b">4 Times</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" style="width:100%; margin-top:1rem" onclick="showToast('✅ Exporting CSV...')">Export Connectivity Data ⬇</button>
+                    </div>
+                </div>
+            </div>
+        </section>
 
         <!-- HOME SECTION -->
         <section class="section active" id="section-home">
@@ -149,9 +506,9 @@
                 <div class="hero-content">
                     <div class="hero-badge">🚀 Next-Gen Learning Platform</div>
                     <h1 class="hero-title">Gram <br /><span class="gradient-text">Shiksha</span></h1>
-                    <p class="hero-subtitle">"Learn Anytime , Anywhere".</p>
+                    <p class="hero-subtitle">Bridging Quality Education for Rural India 🇮🇳</p>
                     <div class="hero-buttons">
-                        <button class="btn btn-primary" onclick="showSection('joinclass')">Join a Class 🎥</button>
+                        <button class="btn btn-primary" onclick="showSection('liveclass')">Join a Class 🎥</button>
                         <button class="btn btn-outline" onclick="showSection('schedule')">View Schedule 📅</button>
                     </div>
                 </div>
@@ -170,52 +527,69 @@
                         <span class="students-count">👥 156</span>
                     </div>
                 </div>
-
-            </div>
-            <!-- Stats -->
-            <div class="stats-bar stats-3col">
-                <div class="stat-item">
-                    <div class="stat-num" style="color:#7c3aed">2,847</div>
-                    <div class="stat-label">Active Students</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-num" style="color:#ec4899">148</div>
-                    <div class="stat-label">Classes Today</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-num" style="color:#0ea5e9">560+</div>
-                    <div class="stat-label">Study Materials</div>
-                </div>
             </div>
 
-            <!-- Info strip -->
-            <div class="home-info-strip">
-                <div class="his-item">
-                    <span class="his-icon">�</span>
-                    <div>
-                        <strong>Secure &amp; Private</strong>
-                        <p>All sessions are end-to-end encrypted</p>
+            <!-- Student Dashboard Stats -->
+            <div class="stats-bar stats-3col" style="margin-top: 2rem;">
+                <div class="stat-item" style="border:1px solid rgba(124,58,237,0.3)">
+                    <div class="stat-num" style="color:#7c3aed">85%</div>
+                    <div class="stat-label">Total Attendance</div>
+                </div>
+                <div class="stat-item" style="border:1px solid rgba(236,72,153,0.3)">
+                    <div class="stat-num" style="color:#ec4899">3</div>
+                    <div class="stat-label">Pending Assignments</div>
+                </div>
+                <div class="stat-item" style="border:1px solid rgba(14,165,233,0.3)">
+                    <div class="stat-num" style="color:#0ea5e9">1</div>
+                    <div class="stat-label">Upcoming Classes</div>
+                </div>
+            </div>
+
+            <!-- Student Home Grid -->
+            <div class="mentor-grid" style="margin-top:2rem">
+                <!-- Upcoming Classes -->
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">⏰</span>
+                            <h3>Upcoming Classes</h3>
+                        </div>
+                        <div class="student-activity-list">
+                            <div class="sal-item" style="background:rgba(236,72,153,0.05); border:1px solid rgba(236,72,153,0.2)">
+                                <div class="sal-icon" style="background:#ec4899">🎥</div>
+                                <div class="sal-info">
+                                    <strong>Physics — Quantum Mechanics</strong>
+                                    <div style="font-size:0.85rem; color:var(--text-muted)">Starts in <span style="color:#ec4899;font-weight:bold">00:45:00</span></div>
+                                    <button class="btn btn-primary" style="margin-top:0.5rem; padding:0.3rem 0.6rem; font-size:0.8rem" onclick="showSection('liveclass')">Join Now</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="his-item">
-                    <span class="his-icon">🌐</span>
-                    <div>
-                        <strong>Learn Anywhere</strong>
-                        <p>Works on mobile, tablet &amp; desktop</p>
-                    </div>
-                </div>
-                <div class="his-item">
-                    <span class="his-icon">🤖</span>
-                    <div>
-                        <strong>AI-Powered</strong>
-                        <p>Smart tutoring &amp; personalised learning</p>
-                    </div>
-                </div>
-                <div class="his-item">
-                    <span class="his-icon">⚡</span>
-                    <div>
-                        <strong>Real-Time</strong>
-                        <p>Instant notifications &amp; live updates</p>
+
+                <!-- Mentor Messages & Approvals -->
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📩</span>
+                            <h3>Mentor Messages & Approvals</h3>
+                        </div>
+                        <div class="student-activity-list">
+                            <div class="sal-item">
+                                <div class="sal-icon" style="background:#10b981">✅</div>
+                                <div class="sal-info">
+                                    <strong>Missed Class Permission Granted</strong>
+                                    <div style="font-size:0.85rem; color:var(--text-muted)">Prof. Sharma approved your access to recorded 'Mathematics — Calculus'</div>
+                                </div>
+                            </div>
+                            <div class="sal-item">
+                                <div class="sal-icon" style="background:#f59e0b">💬</div>
+                                <div class="sal-info">
+                                    <strong>New Announcement</strong>
+                                    <div style="font-size:0.85rem; color:var(--text-muted)">"Don't forget to submit your lab reports by tomorrow!" - Dr. Patel</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -224,15 +598,14 @@
 
         <!-- LOGIN MODALS REMOVED -->
 
-        <!-- ===== MENTOR DASHBOARD SECTION ===== -->
+        <!-- ===== MENTOR DASHBOARD HOME ===== -->
         <section class="section" id="section-mentor">
             <div class="mentor-dashboard-header">
                 <div class="mdb-left">
                     <div class="mdb-avatar">👨‍🏫</div>
                     <div>
-                        <h1 class="mdb-title">Mentor <span class="gradient-text">Dashboard</span></h1>
-                        <p class="mdb-sub" id="mentorWelcomeSub">Welcome back, Mentor! Manage your sessions & students.
-                        </p>
+                        <h1 class="mdb-title">Mentor <span class="gradient-text">Home</span></h1>
+                        <p class="mdb-sub" id="mentorWelcomeSub">Welcome back, Mentor! Here is your daily summary.</p>
                     </div>
                 </div>
                 <div class="mdb-date">📅 <span id="mentorDateLabel"></span></div>
@@ -256,16 +629,192 @@
                     <div class="msc-label">Avg. Attendance</div>
                 </div>
                 <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#f59e0b,#f43f5e)">
-                    <div class="msc-icon">⭐</div>
-                    <div class="msc-val">4.9</div>
-                    <div class="msc-label">Rating</div>
+                    <div class="msc-icon">🔔</div>
+                    <div class="msc-val" id="msc-permissions">0</div>
+                    <div class="msc-label">Pending Requests</div>
                 </div>
             </div>
 
-            <!-- Two-column layout -->
+            <!-- Two-column layout for Home -->
             <div class="mentor-grid">
+                <!-- LEFT: Today's Classes -->
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📅</span>
+                            <h3>Today's Classes</h3>
+                        </div>
+                        <div id="homeTodayClassesList" class="posted-sessions-list">
+                            <div class="no-sessions-placeholder">
+                                <span>👍</span>
+                                <p>No classes scheduled for today.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                <!-- LEFT: Post Session -->
+                <!-- RIGHT: Pending Permissions & Activity -->
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🤝</span>
+                            <h3>Pending Permission Requests</h3>
+                        </div>
+                        <div id="homePendingPermissionsList">
+                            <div class="no-sessions-placeholder" style="padding:1rem;">
+                                <span>✨</span>
+                                <p>All caught up!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Student Activity Feed -->
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📊</span>
+                            <h3>Student Activity</h3>
+                        </div>
+                        <div class="student-activity-list" id="studentActivityList">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== MENTOR LIVE SESSIONS ===== -->
+        <section class="section" id="section-mentor-live">
+            <div class="page-header" style="--header-color: #f43f5e">
+                <div class="page-header-icon">🎥</div>
+                <h2>Live Sessions</h2>
+                <p>Start sessions and view real-time student presence</p>
+            </div>
+            
+            <div class="mentor-grid">
+                <div class="mentor-col">
+                    <div class="mentor-card mentor-start-live">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🔴</span>
+                            <h3>Start Live Class Now</h3>
+                        </div>
+                        <p class="mentor-live-sub">Instantly start a live session — students will be notified.</p>
+                        <div class="pf-row" style="margin-top:1rem">
+                            <input type="text" id="liveSubject" placeholder="Subject name..." class="pf-inline-input" />
+                            <button class="btn btn-primary" onclick="startLiveClass()">🔴 Go Live</button>
+                        </div>
+                        <div id="liveClassStatus" class="live-class-status" style="display:none"></div>
+                    </div>
+
+                    <!-- AI RESCHEDULING CARD -->
+                    <div class="mentor-card" style="margin-top:1.5rem; border:1px solid rgba(124,58,237,0.3); background:rgba(124,58,237,0.05);">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🤖</span>
+                            <h3>AI Network Monitor</h3>
+                        </div>
+                        <p class="text-muted" style="margin-bottom:1rem; font-size:0.85rem">
+                            AI actively monitors student connectivity. If multiple drops occur, it will suggest a better time slot based on past data.
+                        </p>
+                        <div id="aiReschedulePrompt" style="display:none; background:var(--card-bg); padding:1rem; border-radius:8px; border-left:4px solid #f59e0b; margin-top:1rem;">
+                            <div style="display:flex; gap:0.5rem; align-items:flex-start;">
+                                <span style="font-size:1.5rem">⚠️</span>
+                                <div>
+                                    <strong style="color:var(--text-color)">High Drop Rate Detected (>30%)</strong>
+                                    <p style="font-size:0.9rem; margin:0.5rem 0;"><strong>AI Suggestion:</strong> Reschedule to Tomorrow at 10:00 AM. Past data shows optimal connectivity at this time.</p>
+                                    <div style="display:flex; gap:0.5rem; margin-top:0.8rem;">
+                                        <button class="btn btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem" onclick="acceptAIReschedule()">Accept</button>
+                                        <button class="btn btn-outline" style="padding:0.4rem 0.8rem; font-size:0.8rem" onclick="dismissAIReschedule()">Dismiss</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" style="width:100%; border-color:var(--purple); color:var(--purple)" onclick="simulateAIDrop()">[Simulate Network Drop]</button>
+                    </div>
+                </div>
+
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🟢</span>
+                            <h3>Real-Time Attendance Panel</h3>
+                            <span class="online-count-badge" id="onlineCountBadge">0 online</span>
+                        </div>
+                        <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1rem;">Students who minimize or leave are marked absent automatically.</p>
+                        <div class="mentor-online-list" id="mentorOnlineList">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== MENTOR MATERIALS ===== -->
+        <section class="section" id="section-mentor-materials">
+            <div class="page-header" style="--header-color: #0ea5e9">
+                <div class="page-header-icon">📚</div>
+                <h2>Study Materials</h2>
+                <p>Upload PDFs, docs, videos, and manage resources</p>
+            </div>
+            
+            <div class="mentor-grid">
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📤</span>
+                            <h3>Upload New Material</h3>
+                        </div>
+                        <form id="addMaterialForm" class="post-session-form" onsubmit="addStudyMaterial(event)">
+                            <div class="pf-group">
+                                <label>📄 Material Title</label>
+                                <input type="text" id="mat-title" placeholder="e.g. Calculus Chapter 1" required />
+                            </div>
+                            <div class="pf-group">
+                                <label>📑 Type</label>
+                                <select id="mat-type">
+                                    <option value="PDF">📄 PDF Document</option>
+                                    <option value="Video">🎬 Post-Class Video</option>
+                                    <option value="Code">💻 Source Code</option>
+                                    <option value="Image">🖼️ Image</option>
+                                </select>
+                            </div>
+                            <div class="pf-group">
+                                <label>🏷️ Tag / Subject</label>
+                                <input type="text" id="mat-tag" placeholder="e.g. Mathematics" />
+                            </div>
+                            <div class="pf-group">
+                                <label>🔗 Resource Link / URL</label>
+                                <input type="url" id="mat-link" placeholder="https://..." required />
+                            </div>
+                            <button type="submit" class="btn btn-primary pf-submit-btn" style="background:var(--sky)">📚 Upload Material</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📂</span>
+                            <h3>Uploaded Materials</h3>
+                        </div>
+                        <div id="mentorMaterialsList">
+                            <div class="no-sessions-placeholder">
+                                <span>📚</span>
+                                <p>No materials uploaded yet.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== MENTOR SCHEDULE ===== -->
+        <section class="section" id="section-mentor-schedule">
+            <div class="page-header" style="--header-color: #f59e0b">
+                <div class="page-header-icon">📅</div>
+                <h2>Schedule Management</h2>
+                <p>Plan your upcoming live sessions</p>
+            </div>
+            
+            <div class="mentor-grid">
                 <div class="mentor-col">
                     <div class="mentor-card">
                         <div class="mentor-card-header">
@@ -279,8 +828,7 @@
                             </div>
                             <div class="pf-group">
                                 <label>📝 Description</label>
-                                <textarea id="ps-desc" placeholder="What will students learn in this session?"
-                                    rows="3"></textarea>
+                                <textarea id="ps-desc" placeholder="What will students learn in this session?" rows="3"></textarea>
                             </div>
                             <div class="pf-row">
                                 <div class="pf-group">
@@ -311,87 +859,298 @@
                             <button type="submit" class="btn btn-primary pf-submit-btn">📡 Post Session</button>
                         </form>
                     </div>
+                </div>
 
-                    <!-- Posted Sessions List -->
-                    <div class="mentor-card" style="margin-top:1.5rem">
+                <div class="mentor-col">
+                    <div class="mentor-card">
                         <div class="mentor-card-header">
                             <span class="mc-header-icon">📋</span>
-                            <h3>Your Posted Sessions</h3>
+                            <h3>All Posted Sessions</h3>
                         </div>
                         <div id="postedSessionsList" class="posted-sessions-list">
                             <div class="no-sessions-placeholder">
                                 <span>🗓️</span>
-                                <p>No sessions posted yet. Use the form above to schedule your first session!</p>
+                                <p>No sessions posted yet. Use the form to schedule your first session!</p>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
 
-                <!-- RIGHT: Student Activity -->
+        <!-- ===== MENTOR ATTENDANCE ===== -->
+        <section class="section" id="section-mentor-attendance">
+            <div class="page-header" style="--header-color: #10b981">
+                <div class="page-header-icon">✅</div>
+                <h2>Attendance Records</h2>
+                <p>Track student presence historically</p>
+            </div>
+            
+            <div class="mentor-card">
+                <div class="mentor-card-header" style="justify-content: space-between; display: flex;">
+                    <div>
+                        <span class="mc-header-icon">📜</span>
+                        <h3>Class Attendance Log</h3>
+                    </div>
+                    <button class="btn btn-outline" onclick="exportAttendance()">Export to CSV</button>
+                </div>
+                <!-- Responsive table wrapper -->
+                <div style="overflow-x: auto; margin-top: 1rem;">
+                    <table class="attendance-table" id="attendanceTable">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Class</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody">
+                            <!-- Placeholder -->
+                            <tr>
+                                <td>Rahul K.</td>
+                                <td>Mathematics</td>
+                                <td>Oct 20, 2024</td>
+                                <td><span class="status-badge status-present">Present</span></td>
+                                <td><button class="btn-small">Edit</button></td>
+                            </tr>
+                            <tr>
+                                <td>Ananya S.</td>
+                                <td>Mathematics</td>
+                                <td>Oct 20, 2024</td>
+                                <td><span class="status-badge status-absent">Absent</span></td>
+                                <td><button class="btn-small">Edit</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== MENTOR PERMISSIONS ===== -->
+        <section class="section" id="section-mentor-permissions">
+            <div class="page-header" style="--header-color: #7c3aed">
+                <div class="page-header-icon">🤝</div>
+                <h2>Absent Permissions</h2>
+                <p>Manage access requests from students who missed class</p>
+            </div>
+            
+            <div class="mentor-card">
+                <div class="mentor-card-header">
+                    <span class="mc-header-icon">📩</span>
+                    <h3>Pending Requests</h3>
+                </div>
+                <div id="permissionsRequestList">
+                    <div class="permission-card">
+                        <div class="pc-info">
+                            <h4>Rahul K.</h4>
+                            <p>Requested access to: <strong>Mathematics — Calculus</strong> (Oct 20)</p>
+                            <p class="text-muted" style="font-size:0.85rem">Reason: Network completely dropped during the storm.</p>
+                        </div>
+                        <div class="pc-actions">
+                            <button class="btn btn-success" onclick="approvePermission(1)">Approve</button>
+                            <button class="btn btn-danger" onclick="rejectPermission(1)">Reject</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== MENTOR ASSIGNMENTS ===== -->
+        <section class="section" id="section-mentor-assignments">
+            <div class="page-header" style="--header-color: #0ea5e9">
+                <div class="page-header-icon">📝</div>
+                <h2>Manage Assignments</h2>
+                <p>Post assignments and track student submissions</p>
+            </div>
+
+            <div class="mentor-grid">
                 <div class="mentor-col">
-                    <!-- Online Now -->
                     <div class="mentor-card">
                         <div class="mentor-card-header">
-                            <span class="mc-header-icon">🟢</span>
-                            <h3>Students Online Now</h3>
-                            <span class="online-count-badge" id="onlineCountBadge">4 online</span>
+                            <span class="mc-header-icon">➕</span>
+                            <h3>Post New Assignment</h3>
                         </div>
-                        <div class="mentor-online-list" id="mentorOnlineList">
-                            <!-- populated by JS -->
-                        </div>
-                    </div>
-
-                    <!-- Student Activity Feed -->
-                    <div class="mentor-card" style="margin-top:1.5rem">
-                        <div class="mentor-card-header">
-                            <span class="mc-header-icon">📊</span>
-                            <h3>Student Activity</h3>
-                        </div>
-                        <div class="student-activity-list" id="studentActivityList">
-                            <!-- populated by JS -->
-                        </div>
-                    </div>
-
-                    <!-- Quick Class Action -->
-                    <div class="mentor-card mentor-start-live" style="margin-top:1.5rem">
-                        <div class="mentor-card-header">
-                            <span class="mc-header-icon">🔴</span>
-                            <h3>Start Live Class Now</h3>
-                        </div>
-                        <p class="mentor-live-sub">Instantly start a live session — students will be notified.</p>
-                        <div class="pf-row" style="margin-top:1rem">
-                            <input type="text" id="liveSubject" placeholder="Subject name..." class="pf-inline-input" />
-                            <button class="btn btn-primary" onclick="startLiveClass()">🔴 Go Live</button>
-                        </div>
-                        <div id="liveClassStatus" class="live-class-status" style="display:none"></div>
-                    </div>
-
-                    <!-- Upload Study Material (NEW) -->
-                    <div class="mentor-card" style="margin-top:1.5rem">
-                        <div class="mentor-card-header">
-                            <span class="mc-header-icon">📚</span>
-                            <h3>Add Study Material</h3>
-                        </div>
-                        <form id="addMaterialForm" class="post-session-form" onsubmit="addStudyMaterial(event)">
+                        <form id="postAssignmentForm" class="post-session-form" onsubmit="postAssignment(event)">
                             <div class="pf-group">
-                                <label>📄 Material Title</label>
-                                <input type="text" id="mat-title" placeholder="e.g. Calculus Chapter 1" required />
+                                <label>📌 Title *</label>
+                                <input type="text" id="asgn-title" placeholder="e.g. Calculus Chapter 4 Problems" required />
                             </div>
                             <div class="pf-group">
-                                <label>📑 Type</label>
-                                <select id="mat-type">
-                                    <option value="PDF">📄 PDF Document</option>
-                                    <option value="Video">🎬 Video Lecture</option>
-                                    <option value="Code">💻 Source Code</option>
-                                    <option value="Quiz">📝 Interactive Quiz</option>
-                                </select>
+                                <label>📝 Description *</label>
+                                <textarea id="asgn-desc" placeholder="Describe the assignment task..." rows="3" required></textarea>
+                            </div>
+                            <div class="pf-row">
+                                <div class="pf-group">
+                                    <label>📚 Subject *</label>
+                                    <select id="asgn-subject" required>
+                                        <option value="">– Select –</option>
+                                        <option>Mathematics</option>
+                                        <option>Physics</option>
+                                        <option>Chemistry</option>
+                                        <option>Biology</option>
+                                        <option>Computer Science</option>
+                                        <option>English</option>
+                                        <option>Other</option>
+                                    </select>
+                                </div>
+                                <div class="pf-group">
+                                    <label>👥 Target Batch</label>
+                                    <select id="asgn-batch">
+                                        <option value="all">All Students</option>
+                                        <option value="batch-a">Batch A</option>
+                                        <option value="batch-b">Batch B</option>
+                                    </select>
+                                </div>
                             </div>
                             <div class="pf-group">
-                                <label>🔗 Resource Link / URL</label>
-                                <input type="url" id="mat-link" placeholder="https://..." required />
+                                <label>📅 Due Date &amp; Time *</label>
+                                <input type="datetime-local" id="asgn-due" required />
                             </div>
-                            <button type="submit" class="btn btn-primary pf-submit-btn" style="background:var(--sky)">📚 Add Material</button>
+                            <div class="pf-group">
+                                <label>📎 Attach File (Optional)</label>
+                                <input type="file" id="asgn-file" accept=".pdf,.doc,.docx,.png,.jpg" style="background:rgba(255,255,255,0.05); border:1px solid rgba(124,58,237,0.3); border-radius:8px; padding:0.5rem; color:var(--text-color); width:100%" />
+                            </div>
+                            <button type="submit" class="btn btn-primary pf-submit-btn" style="background:var(--sky)">📝 Post Assignment</button>
                         </form>
+                    </div>
+                </div>
+
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📋</span>
+                            <h3>Posted Assignments</h3>
+                        </div>
+                        <div id="mentorAssignmentsList">
+                            <div class="no-sessions-placeholder">
+                                <span>📝</span>
+                                <p>No assignments posted yet.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== MENTOR AI RESCHEDULE ===== -->
+        <section class="section" id="section-mentor-aireschedule">
+            <div class="page-header" style="--header-color: #7c3aed">
+                <div class="page-header-icon">🤖</div>
+                <h2>AI Reschedule</h2>
+                <p>Intelligent session rescheduling based on student network quality</p>
+            </div>
+
+            <div class="mentor-grid">
+                <div class="mentor-col">
+                    <!-- Real-time Network Monitor -->
+                    <div class="mentor-card" style="border:1px solid rgba(124,58,237,0.3); background:rgba(124,58,237,0.05)">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📡</span>
+                            <h3>Student Network Quality Monitor</h3>
+                        </div>
+                        <p class="text-muted" style="font-size:0.85rem; margin-bottom:1rem">
+                            AI continuously monitors real-time network quality of all enrolled students. If &gt;30% show poor connectivity, it generates a rescheduling suggestion.
+                        </p>
+
+                        <!-- Live network status bars -->
+                        <div id="networkQualityList" style="margin-bottom:1rem">
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid rgba(255,255,255,0.05)">
+                                <span style="font-size:0.9rem">Rahul K.</span>
+                                <div style="display:flex; align-items:center; gap:0.5rem">
+                                    <div style="width:80px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden">
+                                        <div style="height:100%; width:75%; background:#10b981; transition:width 1s"></div>
+                                    </div>
+                                    <span style="font-size:0.8rem; color:#10b981">Good</span>
+                                </div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid rgba(255,255,255,0.05)">
+                                <span style="font-size:0.9rem">Ananya S.</span>
+                                <div style="display:flex; align-items:center; gap:0.5rem">
+                                    <div style="width:80px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden">
+                                        <div style="height:100%; width:30%; background:#f43f5e; transition:width 1s"></div>
+                                    </div>
+                                    <span style="font-size:0.8rem; color:#f43f5e">Poor</span>
+                                </div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0; border-bottom:1px solid rgba(255,255,255,0.05)">
+                                <span style="font-size:0.9rem">Kavya L.</span>
+                                <div style="display:flex; align-items:center; gap:0.5rem">
+                                    <div style="width:80px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden">
+                                        <div style="height:100%; width:55%; background:#f59e0b; transition:width 1s"></div>
+                                    </div>
+                                    <span style="font-size:0.8rem; color:#f59e0b">Fair</span>
+                                </div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0">
+                                <span style="font-size:0.9rem">Deepak M.</span>
+                                <div style="display:flex; align-items:center; gap:0.5rem">
+                                    <div style="width:80px; height:8px; background:rgba(255,255,255,0.1); border-radius:4px; overflow:hidden">
+                                        <div style="height:100%; width:20%; background:#f43f5e; transition:width 1s"></div>
+                                    </div>
+                                    <span style="font-size:0.8rem; color:#f43f5e">Poor</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                            <button class="btn btn-outline" style="border-color:#7c3aed; color:#7c3aed" onclick="manualAINetworkCheck()">🔍 Check Network &amp; Suggest Time</button>
+                            <button class="btn btn-outline" onclick="simulateAIDrop()">⚡ Simulate Network Drop</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mentor-col">
+                    <!-- AI Suggestion Card -->
+                    <div id="aiRescheduleSuggestionCard" style="display:none">
+                        <div class="mentor-card" style="border:2px solid #f59e0b; background:rgba(245,158,11,0.05)">
+                            <div class="mentor-card-header">
+                                <span class="mc-header-icon">🤖</span>
+                                <h3 style="color:#f59e0b">AI Suggestion</h3>
+                            </div>
+                            <div style="display:flex; gap:0.8rem; align-items:flex-start; margin-bottom:1rem">
+                                <span style="font-size:2rem">⚠️</span>
+                                <div>
+                                    <strong style="color:var(--text-color)" id="aiDropAlertText">Poor network detected for 2+ students (&gt;30%)</strong>
+                                    <p style="font-size:0.9rem; margin:0.5rem 0; color:var(--text-muted)" id="aiSuggestionText">Suggested new time: Tomorrow at 10:00 AM. Historical data shows optimal connectivity at this slot.</p>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:0.5rem">
+                                <button class="btn btn-primary" style="background:#10b981" onclick="acceptAIReschedule()">✅ Accept Reschedule</button>
+                                <button class="btn btn-outline" onclick="dismissAIReschedule()">❌ Dismiss</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="mentor-card" id="aiRescheduleStatusCard">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">✅</span>
+                            <h3>AI Status</h3>
+                        </div>
+                        <div style="text-align:center; padding:1.5rem; color:#64748b">
+                            <div style="font-size:2rem; margin-bottom:0.5rem">🤖</div>
+                            <p>AI is actively monitoring student network quality.</p>
+                            <p style="font-size:0.85rem; margin-top:0.5rem">No rescheduling needed right now.</p>
+                        </div>
+                    </div>
+
+                    <!-- History of AI reschedules -->
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📜</span>
+                            <h3>Reschedule History</h3>
+                        </div>
+                        <div id="aiRescheduleHistory">
+                            <div class="sal-item">
+                                <div class="sal-icon" style="background:#f59e0b">📅</div>
+                                <div class="sal-info">
+                                    <strong>Physics — Wave Optics</strong>
+                                    <div style="font-size:0.85rem; color:var(--text-muted)">Rescheduled from Mon 9 AM → Tue 11 AM. Reason: 40% connectivity drop.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -423,7 +1182,7 @@
                         <div class="sc-tags"><span class="tag tag-live">🔴 Live Now</span><span
                                 class="tag tag-subject">Mathematics</span></div>
                     </div>
-                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                    <button class="btn-join-small" onclick="showSection('liveclass')">Join</button>
                 </div>
 
                 <div class="schedule-card" data-day="today" style="--sc-color: #ec4899">
@@ -437,7 +1196,7 @@
                         <div class="sc-tags"><span class="tag tag-upcoming">⏰ Upcoming</span><span
                                 class="tag tag-subject">Science</span></div>
                     </div>
-                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                    <button class="btn-join-small" onclick="showSection('liveclass')">Join</button>
                 </div>
 
                 <div class="schedule-card" data-day="today" style="--sc-color: #0ea5e9">
@@ -451,7 +1210,7 @@
                         <div class="sc-tags"><span class="tag tag-upcoming">⏰ Upcoming</span><span
                                 class="tag tag-subject">CS</span></div>
                     </div>
-                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                    <button class="btn-join-small" onclick="showSection('liveclass')">Join</button>
                 </div>
 
                 <div class="schedule-card" data-day="tomorrow" style="--sc-color: #f59e0b">
@@ -465,7 +1224,7 @@
                         <div class="sc-tags"><span class="tag tag-upcoming">⏰ Tomorrow</span><span
                                 class="tag tag-subject">Chemistry</span></div>
                     </div>
-                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                    <button class="btn-join-small" onclick="showSection('liveclass')">Join</button>
                 </div>
 
                 <div class="schedule-card" data-day="week" style="--sc-color: #10b981">
@@ -479,16 +1238,16 @@
                         <div class="sc-tags"><span class="tag tag-upcoming">📆 This Week</span><span
                                 class="tag tag-subject">English</span></div>
                     </div>
-                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                    <button class="btn-join-small" onclick="showSection('liveclass')">Join</button>
                 </div>
             </div>
         </section>
 
-        <!-- JOIN CLASS SECTION -->
-        <section class="section" id="section-joinclass">
+        <!-- LIVE CLASS SECTION -->
+        <section class="section" id="section-liveclass">
             <div class="page-header" style="--header-color: #ec4899">
                 <div class="page-header-icon">🎥</div>
-                <h2>Join Class</h2>
+                <h2>Live Classes</h2>
                 <p>Connect to your live sessions instantly</p>
             </div>
 
@@ -558,333 +1317,209 @@
                 </div>
             </div>
 
-            <!-- Mock classroom viewer -->
-            <div class="classroom-preview" id="classroomPreview" style="display:none">
-                <div class="classroom-top-bar">
-                    <span id="classroomTitle">📐 Mathematics — Live Session</span>
-                    <button class="btn-leave" onclick="leaveClass()">Leave ✕</button>
-                </div>
-                <div class="classroom-screen">
-                    <div class="classroom-screen-inner">
-                        <div class="screen-content">
-                            <div class="screen-icon">🖥️</div>
-                            <p>Live class is in progress...</p>
-                            <p class="screen-sub">Interactive whiteboard &amp; screen share active</p>
-                        </div>
-                    </div>
-                    <div class="classroom-controls">
-                        <button class="ctrl-btn" title="Microphone">🎤</button>
-                        <button class="ctrl-btn" title="Camera">📷</button>
-                        <button class="ctrl-btn" title="Chat">💬</button>
-                        <button class="ctrl-btn" title="Raise Hand">✋</button>
-                        <button class="ctrl-btn ctrl-danger" onclick="leaveClass()" title="Leave">📵</button>
-                    </div>
-                </div>
-            </div>
+            <!-- New Universal Live Room Overlay is appended at the end of body -->
         </section>
 
-        <!-- HISTORY SECTION -->
-        <section class="section" id="section-history">
+        <!-- ASSIGNMENTS SECTION (STUDENT) -->
+        <section class="section" id="section-assignments">
             <div class="page-header" style="--header-color: #0ea5e9">
-                <div class="page-header-icon">📜</div>
-                <h2>Class History</h2>
-                <p>All your past sessions and recordings</p>
+                <div class="page-header-icon">📝</div>
+                <h2>Assignments</h2>
+                <p>View, submit, and track your assignments</p>
             </div>
 
-            <div class="history-filter">
-                <button class="hfbtn active" onclick="filterHistory('all', this)">All</button>
-                <button class="hfbtn" onclick="filterHistory('math', this)">Math</button>
-                <button class="hfbtn" onclick="filterHistory('science', this)">Science</button>
-                <button class="hfbtn" onclick="filterHistory('cs', this)">CS</button>
-            </div>
-
-            <div class="history-list" id="historyList">
-                <div class="history-card" data-cat="math" style="--hc-color: #7c3aed">
-                    <div class="hc-date-badge">Feb 20</div>
-                    <div class="hc-info">
-                        <div class="hc-icon">📐</div>
-                        <div>
-                            <h3>Mathematics — Linear Algebra</h3>
-                            <p>Prof. Sharma &nbsp;|&nbsp; Duration: 1h 15m</p>
-                        </div>
+            <div id="studentAssignmentsList">
+                <!-- Populated by JS -->
+                <div class="mentor-card">
+                    <div class="mentor-card-header">
+                        <span class="mc-header-icon">📋</span>
+                        <h3>Pending Assignments</h3>
                     </div>
-                    <div class="hc-stats">
-                        <span class="hc-stat">✅ Attended</span>
-                        <span class="hc-stat">📊 87%</span>
-                        <button class="btn-watch">▶ Watch</button>
+                    <div class="student-activity-list" id="pendingAssignmentsList">
+                        <div class="sal-item">
+                            <div class="sal-icon" style="background:#0ea5e9">📄</div>
+                            <div class="sal-info" style="width:100%">
+                                <strong>Mathematics — Calculus Chapter 4</strong>
+                                <div style="font-size:0.85rem; color:#f43f5e; margin:0.3rem 0">Due: Tomorrow, 11:59 PM</div>
+                                <div style="font-size:0.85rem; color:var(--text-color); margin-bottom:0.5rem">Solve all problems from exercises 4.1 to 4.5. Show full working.</div>
+                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(124,58,237,0.2); border-radius:8px; padding:1rem; margin-top:0.5rem">
+                                    <p style="font-size:0.8rem; font-weight:600; margin-bottom:0.5rem">📎 Submit Your Work:</p>
+                                    <textarea placeholder="Type your answer here..." style="width:100%; min-height:80px; border-radius:6px; border:1px solid rgba(124,58,237,0.3); background:rgba(255,255,255,0.05); color:var(--text-color); padding:0.5rem; font-family:inherit; resize:vertical" id="assign-text-1"></textarea>
+                                    <div style="display:flex; gap:0.5rem; margin-top:0.5rem; align-items:center">
+                                        <label style="cursor:pointer; font-size:0.8rem; background:rgba(255,255,255,0.1); padding:0.3rem 0.8rem; border-radius:6px; border:1px solid rgba(255,255,255,0.2)">
+                                            📤 Upload File
+                                            <input type="file" style="display:none" accept=".pdf,.doc,.docx,.png,.jpg" onchange="handleAssignmentFile(this, 1)" />
+                                        </label>
+                                        <span id="assign-file-name-1" style="font-size:0.8rem; color:#64748b"></span>
+                                        <button class="btn btn-primary" style="padding:0.3rem 0.8rem; font-size:0.8rem; margin-left:auto" onclick="submitAssignment(1, 'Calculus Chapter 4')">Submit ✅</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <div class="history-card" data-cat="science" style="--hc-color: #ec4899">
-                    <div class="hc-date-badge">Feb 19</div>
-                    <div class="hc-info">
-                        <div class="hc-icon">🔬</div>
-                        <div>
-                            <h3>Physics — Wave Optics</h3>
-                            <p>Dr. Patel &nbsp;|&nbsp; Duration: 58m</p>
+                
+                <div class="mentor-card" style="margin-top: 1.5rem">
+                    <div class="mentor-card-header">
+                        <span class="mc-header-icon">✅</span>
+                        <h3>Reviewed Assignments</h3>
+                    </div>
+                    <div class="student-activity-list" id="reviewedAssignmentsList">
+                        <div class="sal-item" style="opacity:0.8">
+                            <div class="sal-icon" style="background:#10b981">📝</div>
+                            <div class="sal-info">
+                                <strong>Physics — Forces Assignment</strong>
+                                <div style="font-size:0.85rem; color:#10b981">Reviewed: Score 92/100</div>
+                                <div style="font-size:0.85rem; color:var(--text-color); margin-top:0.3rem">Mentor feedback: Excellent work! Minor error in Q3.</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="hc-stats">
-                        <span class="hc-stat">✅ Attended</span>
-                        <span class="hc-stat">📊 92%</span>
-                        <button class="btn-watch">▶ Watch</button>
-                    </div>
-                </div>
-
-                <div class="history-card" data-cat="cs" style="--hc-color: #0ea5e9">
-                    <div class="hc-date-badge">Feb 18</div>
-                    <div class="hc-info">
-                        <div class="hc-icon">💻</div>
-                        <div>
-                            <h3>CS — Machine Learning Basics</h3>
-                            <p>Prof. Kumar &nbsp;|&nbsp; Duration: 1h 30m</p>
-                        </div>
-                    </div>
-                    <div class="hc-stats">
-                        <span class="hc-stat">❌ Missed</span>
-                        <span class="hc-stat">📊 —</span>
-                        <button class="btn-watch">▶ Watch</button>
-                    </div>
-                </div>
-
-                <div class="history-card" data-cat="math" style="--hc-color: #f59e0b">
-                    <div class="hc-date-badge">Feb 17</div>
-                    <div class="hc-info">
-                        <div class="hc-icon">📐</div>
-                        <div>
-                            <h3>Mathematics — Integration</h3>
-                            <p>Prof. Sharma &nbsp;|&nbsp; Duration: 1h 5m</p>
-                        </div>
-                    </div>
-                    <div class="hc-stats">
-                        <span class="hc-stat">✅ Attended</span>
-                        <span class="hc-stat">📊 95%</span>
-                        <button class="btn-watch">▶ Watch</button>
-                    </div>
-                </div>
-
-                <div class="history-card" data-cat="science" style="--hc-color: #10b981">
-                    <div class="hc-date-badge">Feb 16</div>
-                    <div class="hc-info">
-                        <div class="hc-icon">🧪</div>
-                        <div>
-                            <h3>Chemistry — Reaction Kinetics</h3>
-                            <p>Dr. Nair &nbsp;|&nbsp; Duration: 45m</p>
-                        </div>
-                    </div>
-                    <div class="hc-stats">
-                        <span class="hc-stat">✅ Attended</span>
-                        <span class="hc-stat">📊 89%</span>
-                        <button class="btn-watch">▶ Watch</button>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- STUDY MATERIAL SECTION -->
-        <section class="section" id="section-studymaterial">
+        <!-- HOMEWORK SECTION (HIDDEN - REMOVED PER FIX 5) -->
+        <section class="section" id="section-homework" style="display:none !important">
             <div class="page-header" style="--header-color: #f59e0b">
                 <div class="page-header-icon">📚</div>
-                <h2>Study Material</h2>
-                <p>Curated resources for every subject</p>
+                <h2>Homework</h2>
+                <p>Track daily practice problems</p>
             </div>
-
-            <div class="search-bar">
-                <input type="text" placeholder="🔍 Search materials..." class="search-input"
-                    oninput="searchMaterials(this.value)" />
-            </div>
-
-            <div class="materials-grid" id="materialsGrid">
-                <div class="material-card" style="--mc-color: #7c3aed" data-search="mathematics calculus notes pdf">
-                    <div class="mc-type-badge">📄 PDF</div>
-                    <div class="mc-icon">📐</div>
-                    <h3>Calculus Notes</h3>
-                    <p>Mathematics • Chapter 5-8</p>
-                    <div class="mc-footer">
-                        <span>2.4 MB</span>
-                        <button class="btn-download">⬇ Download</button>
-                    </div>
+            
+            <div class="mentor-card">
+                <div class="mentor-card-header">
+                    <span class="mc-header-icon">📖</span>
+                    <h3>Daily Homework</h3>
                 </div>
-
-                <div class="material-card" style="--mc-color: #ec4899" data-search="physics quantum mechanics video">
-                    <div class="mc-type-badge">🎬 Video</div>
-                    <div class="mc-icon">🔬</div>
-                    <h3>Quantum Mechanics</h3>
-                    <p>Physics • Lecture Series</p>
-                    <div class="mc-footer">
-                        <span>45 min</span>
-                        <button class="btn-download">▶ Watch</button>
+                <div class="student-activity-list">
+                    <div class="sal-item">
+                        <div class="sal-icon" style="background:#f59e0b">✏️</div>
+                        <div class="sal-info">
+                            <strong>Physics — Wave Optics Exercises</strong>
+                            <p style="font-size:0.85rem; margin:0.3rem 0; color:var(--text-color)">Complete questions 1-15 from the textbook.</p>
+                            <label style="display:inline-flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; margin-top:0.3rem;">
+                                <input type="checkbox" onchange="showToast('✅ Homework marked as Completed!')" />
+                                <span>Mark as Done</span>
+                            </label>
+                        </div>
                     </div>
-                </div>
-
-                <div class="material-card" style="--mc-color: #0ea5e9"
-                    data-search="computer science python programming code">
-                    <div class="mc-type-badge">💻 Code</div>
-                    <div class="mc-icon">🐍</div>
-                    <h3>Python Programming</h3>
-                    <p>CS • Starter Pack</p>
-                    <div class="mc-footer">
-                        <span>14 files</span>
-                        <button class="btn-download">⬇ Download</button>
-                    </div>
-                </div>
-
-                <div class="material-card" style="--mc-color: #f59e0b"
-                    data-search="chemistry organic compounds pdf notes">
-                    <div class="mc-type-badge">📄 PDF</div>
-                    <div class="mc-icon">🧪</div>
-                    <h3>Organic Chemistry</h3>
-                    <p>Chemistry • Full Guide</p>
-                    <div class="mc-footer">
-                        <span>5.1 MB</span>
-                        <button class="btn-download">⬇ Download</button>
-                    </div>
-                </div>
-
-                <div class="material-card" style="--mc-color: #10b981"
-                    data-search="biology cell genetics quiz practice">
-                    <div class="mc-type-badge">📝 Quiz</div>
-                    <div class="mc-icon">🧬</div>
-                    <h3>Cell Biology Quiz</h3>
-                    <p>Biology • Practice Test</p>
-                    <div class="mc-footer">
-                        <span>25 Qs</span>
-                        <button class="btn-download">▶ Start</button>
-                    </div>
-                </div>
-
-                <div class="material-card" style="--mc-color: #f43f5e"
-                    data-search="english literature shakespeare notes">
-                    <div class="mc-type-badge">📄 PDF</div>
-                    <div class="mc-icon">📖</div>
-                    <h3>English Literature</h3>
-                    <p>English • Shakespeare</p>
-                    <div class="mc-footer">
-                        <span>1.8 MB</span>
-                        <button class="btn-download">⬇ Download</button>
+                    <div class="sal-item">
+                        <div class="sal-icon" style="background:#7c3aed">✏️</div>
+                        <div class="sal-info">
+                            <strong>Chemistry — Bonding Worksheet</strong>
+                            <p style="font-size:0.85rem; margin:0.3rem 0; color:var(--text-color)">Finish the worksheet provided in class.</p>
+                            <label style="display:inline-flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.85rem; margin-top:0.3rem;">
+                                <input type="checkbox" onchange="showToast('✅ Homework marked as Completed!')" />
+                                <span>Mark as Done</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- STUDENT PROGRESS SECTION -->
-        <section class="section" id="section-progress">
-            <div class="page-header" style="--header-color: #10b981">
-                <div class="page-header-icon">📊</div>
-                <h2>Student Progress</h2>
-                <p>Your performance analytics & insights</p>
+        <!-- HISTORY SECTION (STUDENT) -->
+        <section class="section" id="section-history">
+            <div class="page-header" style="--header-color: #7c3aed">
+                <div class="page-header-icon">🕐</div>
+                <h2>Class History</h2>
+                <p>View and download all past live class recordings</p>
             </div>
 
-            <!-- Overall Stats -->
-            <div class="progress-overview">
-                <div class="progress-stat-card" style="--psc-color: #7c3aed">
-                    <div class="psc-icon">🏆</div>
-                    <div class="psc-val">A+</div>
-                    <div class="psc-label">Overall Grade</div>
+            <div class="mentor-card">
+                <div class="mentor-card-header" style="justify-content:space-between; display:flex; flex-wrap:wrap; gap:0.5rem">
+                    <div style="display:flex; align-items:center; gap:0.5rem">
+                        <span class="mc-header-icon">📜</span>
+                        <h3>Past Classes</h3>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                        <select id="historyFilter" onchange="filterHistorySection(this.value)" style="padding:0.4rem 0.8rem; background:rgba(255,255,255,0.05); color:var(--text-color); border:1px solid rgba(124,58,237,0.3); border-radius:6px">
+                            <option value="all">All Classes</option>
+                            <option value="present">Present Only</option>
+                            <option value="absent">Absent Only</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="progress-stat-card" style="--psc-color: #0ea5e9">
-                    <div class="psc-icon">📅</div>
-                    <div class="psc-val">89%</div>
-                    <div class="psc-label">Attendance</div>
+                <div id="historyList" style="margin-top:1rem">
+                    <!-- JS Populated -->
+                    <div class="history-session-card" data-status="present">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem">
+                            <div>
+                                <div style="font-weight:700; font-size:1rem">📐 Mathematics — Differential Equations</div>
+                                <div style="font-size:0.85rem; color:var(--text-muted); margin-top:0.3rem">📅 March 12, 2025 &nbsp;| ⏱ 45 minutes &nbsp;| 👨‍🏫 Prof. Sharma</div>
+                            </div>
+                            <span class="status-badge status-present">Present</span>
+                        </div>
+                        <div style="margin-top:0.8rem">
+                            <button class="btn btn-primary" style="font-size:0.8rem; padding:0.3rem 0.8rem" onclick="downloadRecording('Mathematics_2025-03-12')">📥 Download Recording</button>
+                        </div>
+                    </div>
+
+                    <div class="history-session-card" data-status="absent" style="margin-top:1rem">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem">
+                            <div>
+                                <div style="font-weight:700; font-size:1rem">🔬 Biology — Cell Division</div>
+                                <div style="font-size:0.85rem; color:var(--text-muted); margin-top:0.3rem">📅 March 11, 2025 &nbsp;| ⏱ 60 minutes &nbsp;| 👨‍🏫 Dr. Agarwal</div>
+                            </div>
+                            <span class="status-badge status-absent">🔴 Absent</span>
+                        </div>
+                        <div style="margin-top:0.8rem; background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.2); border-radius:8px; padding:0.8rem">
+                            <p style="font-size:0.85rem; margin-bottom:0.5rem">🔒 Recording locked. Request mentor access to view.</p>
+                            <textarea placeholder="Reason for absence (required)..." id="access-reason-1" style="width:100%; min-height:60px; border-radius:6px; border:1px solid rgba(244,63,94,0.3); background:rgba(255,255,255,0.05); color:var(--text-color); padding:0.5rem; font-family:inherit; resize:vertical"></textarea>
+                            <button class="btn btn-outline" style="font-size:0.8rem; padding:0.3rem 0.8rem; margin-top:0.5rem; border-color:#f43f5e; color:#f43f5e" onclick="requestRecordingAccess('Biology_2025-03-11', 1)">📨 Send Access Request</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="progress-stat-card" style="--psc-color: #ec4899">
-                    <div class="psc-icon">✅</div>
-                    <div class="psc-val">72%</div>
-                    <div class="psc-label">Tasks Done</div>
-                </div>
-                <div class="progress-stat-card" style="--psc-color: #f59e0b">
-                    <div class="psc-icon">⭐</div>
-                    <div class="psc-val">4.8</div>
-                    <div class="psc-label">Avg. Score</div>
-                </div>
+            </div>
+        </section>
+
+        <!-- AI DOUBT SOLVER SECTION -->
+        <section class="section" id="section-aidoubt">
+            <div class="page-header" style="--header-color: #7c3aed">
+                <div class="page-header-icon">🤖</div>
+                <h2>AI Doubt Solver</h2>
+                <p>Instant answers to your questions, even on slow connections</p>
             </div>
 
-            <!-- Subject progress bars -->
-            <div class="section-header">
-                <h3 class="progress-section-heading">Subject-Wise Performance</h3>
+            <div class="mentor-card" style="min-height:400px; display:flex; flex-direction:column; background:var(--card-bg)">
+                <div style="flex-grow:1; overflow-y:auto; padding:1rem; border:1px solid rgba(124,58,237,0.2); border-radius:8px; margin-bottom:1rem;" id="aiDoubtHistory">
+                    <div style="text-align:center; padding:2rem; color:#64748b">
+                        <span style="font-size:2rem; display:block; margin-bottom:1rem">💬</span>
+                        Ask any question related to your subjects! I am context-aware of your grade level.
+                    </div>
+                    <!-- Responses will be appended here -->
+                    <div id="aiResponseContent" style="margin-top:1rem; color:var(--text-color);"></div>
+                </div>
+                <div style="display:flex; gap:0.5rem">
+                    <input type="text" id="aiQuestion" placeholder="Type your doubt here..." style="flex-grow:1; border-radius:8px; border:1px solid rgba(124,58,237,0.3); padding:0.8rem; background:rgba(255,255,255,0.05); color:var(--text-color)" />
+                    <button class="btn btn-primary" onclick="askAI()">Ask AI</button>
+                </div>
             </div>
-            <div class="subject-progress">
-                <div class="subj-progress-item">
-                    <div class="subj-header">
-                        <span>📐 Mathematics</span>
-                        <span style="color:#7c3aed;font-weight:700">92%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="--fill-color: #7c3aed; --fill-width: 92%"></div>
-                    </div>
-                </div>
-                <div class="subj-progress-item">
-                    <div class="subj-header">
-                        <span>🔬 Physics</span>
-                        <span style="color:#ec4899;font-weight:700">78%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="--fill-color: #ec4899; --fill-width: 78%"></div>
-                    </div>
-                </div>
-                <div class="subj-progress-item">
-                    <div class="subj-header">
-                        <span>💻 Computer Science</span>
-                        <span style="color:#0ea5e9;font-weight:700">96%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="--fill-color: #0ea5e9; --fill-width: 96%"></div>
-                    </div>
-                </div>
-                <div class="subj-progress-item">
-                    <div class="subj-header">
-                        <span>🧪 Chemistry</span>
-                        <span style="color:#f59e0b;font-weight:700">84%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="--fill-color: #f59e0b; --fill-width: 84%"></div>
-                    </div>
-                </div>
-                <div class="subj-progress-item">
-                    <div class="subj-header">
-                        <span>🧬 Biology</span>
-                        <span style="color:#10b981;font-weight:700">88%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="--fill-color: #10b981; --fill-width: 88%"></div>
-                    </div>
-                </div>
-                <div class="subj-progress-item">
-                    <div class="subj-header">
-                        <span>📖 English</span>
-                        <span style="color:#f43f5e;font-weight:700">74%</span>
-                    </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="--fill-color: #f43f5e; --fill-width: 74%"></div>
-                    </div>
-                </div>
+        </section>
+
+        <!-- SETTINGS SECTION -->
+        <section class="section" id="section-settings">
+            <div class="page-header" style="--header-color: #64748b">
+                <div class="page-header-icon">⚙️</div>
+                <h2>Settings</h2>
+                <p>Manage your profile and preferences</p>
             </div>
 
-            <!-- Recent Achievements -->
-            <div class="section-header" style="margin-top:2rem">
-                <h3 class="progress-section-heading">🏅 Recent Achievements</h3>
-            </div>
-            <div class="achievements-grid">
-                <div class="achievement-badge" style="--ab-color: #f59e0b">
-                    <div class="ab-icon">🥇</div>
-                    <div class="ab-title">Top Scorer</div>
-                    <div class="ab-sub">Mathematics Quiz</div>
+            <div class="mentor-card">
+                <div class="pf-group">
+                    <label>Profile Name</label>
+                    <input type="text" value="Student User" disabled style="background:rgba(255,255,255,0.02)"/>
                 </div>
-                <div class="achievement-badge" style="--ab-color: #0ea5e9">
-                    <div class="ab-icon">🎯</div>
-                    <div class="ab-title">Perfect Attendance</div>
-                    <div class="ab-sub">February Week 1</div>
+                <div class="pf-group">
+                    <label>Grade/Class</label>
+                    <input type="text" value="12th Grade Science" disabled style="background:rgba(255,255,255,0.02)"/>
                 </div>
-                <div class="achievement-badge" style="--ab-color: #7c3aed">
-                    <div class="ab-icon">🚀</div>
-                    <div class="ab-title">Fast Learner</div>
-                    <div class="ab-sub">AI Training Module</div>
+                <div class="pf-group">
+                    <label>Notifications</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer"><input type="checkbox" checked /> Email Alerts</label>
+                    <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; margin-top:0.5rem"><input type="checkbox" checked /> SMS Alerts</label>
                 </div>
-                <div class="achievement-badge" style="--ab-color: #10b981">
-                    <div class="ab-icon">🌟</div>
-                    <div class="ab-title">All Tasks Done</div>
-                    <div class="ab-sub">CS Assignment Week</div>
-                </div>
+                <button class="btn btn-outline" style="margin-top:1rem" onclick="showToast('✅ Settings saved!')">Save Changes</button>
             </div>
         </section>
 
@@ -975,12 +1610,52 @@
             </button>
         </div>
         <div class="chatbot-footer-note">
-            🔊 Voice AI active • Ctrl+Shift+V = Quick voice • Powered by Pollinations AI
+            🔊 Voice AI active • Ctrl+Shift+V = Quick voice • Powered by Google Gemini
         </div>
 
         <!-- ARIA live region for screen readers -->
         <div id="ariaLiveRegion" aria-live="polite" aria-atomic="true"
             style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;"></div>
+    </div> <!-- End of chatbot container -->
+
+    <!-- ============================================ -->
+    <!-- UNIVERSAL LIVE CLASSROOM OVERLAY             -->
+    <!-- ============================================ -->
+    <div id="liveRoomOverlay" class="live-room-overlay" style="display:none">
+        <div class="lr-topbar">
+            <div class="lr-title">
+                <span class="live-badge-big" style="background:var(--rose);animation:pulse 2s infinite">LIVE</span>
+                <span id="lrRoomTitle">Subject Name</span>
+            </div>
+            <div class="lr-timer" id="lrTimerDisplay">00:00</div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="lr-main" id="lrMainContent">
+            <!-- Will be dynamically populated. Student gets Mentor Video, Mentor gets Student Grid -->
+        </div>
+
+        <!-- Local self view (small PiP box) -->
+        <div class="lr-self-view" id="lrSelfViewBox">
+            <video id="lrLocalVideo" autoplay muted playsinline></video>
+            <div class="sv-name">You</div>
+        </div>
+
+        <div class="lr-controls-bar">
+            <button class="lr-ctrl-btn" id="lrMicBtn" onclick="toggleLRMic()" title="Toggle Microphone">🎤</button>
+            <button class="lr-ctrl-btn" id="lrCamBtn" onclick="toggleLRCam()" title="Toggle Camera">📷</button>
+            <button class="lr-ctrl-btn" style="background:var(--rose);width:auto;padding:0 20px;border-radius:25px;" onclick="leaveLiveRoom()" id="lrEndBtn">End Session</button>
+        </div>
+    </div>
+
+    <!-- Background Tab Switch Warning Modal -->
+    <div id="absenceWarningModal" class="modal-overlay" style="display:none">
+        <div class="modal-box" style="border-top: 4px solid var(--rose)">
+            <h2>⚠️ WARNING</h2>
+            <p style="color:rgba(255,255,255,0.8)">You have left the active class window. Return immediately, or you will be marked absent and removed.</p>
+            <div style="font-size:3rem; font-weight:900; color:var(--rose)" id="absenceCountdown">5</div>
+            <button class="btn btn-primary" onclick="cancelAbsenceWarning()" style="width:100%">I'm Here</button>
+        </div>
     </div>
 
     <script src="app.js"></script>
