@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gram Shiksha</title>
+    <meta name="description"
+        content="Gram Shiksha – Learn smarter, anywhere, anytime. Access schedules, live classes, study materials, and AI-powered learning tools." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+    <!-- ===== SPLASH SCREEN ===== -->
+    <div class="splash-screen" id="splashScreen">
+        <div class="splash-content">
+            <img src="logo.png" alt="Gram Shiksha Logo" class="logo-img splash-logo-img" />
+            <h1 class="splash-title">Gram <span class="gradient-text">Shiksha</span></h1>
+        </div>
+    </div>
+
+    <!-- ===== LOGIN PAGE REMOVED ===== -->
+
+    <!-- ===== NAVBAR ===== -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-left" style="display: flex; align-items: center; gap: 0.8rem;">
+            <button class="hamburger" id="hamburgerBtn" aria-label="Open Menu" aria-expanded="false">
+                <span class="bar bar1"></span>
+                <span class="bar bar2"></span>
+                <span class="bar bar3"></span>
+            </button>
+            <div class="nav-brand">
+                <div class="brand-icon">
+                    <img src="logo.png" alt="Gram Shiksha Logo" class="logo-img navbar-logo-img" />
+                </div>
+                <span class="brand-name">Gram <span class="brand-accent">Shiksha</span></span>
+            </div>
+        </div>
+
+        <div class="nav-controls" style="display: flex; gap: 1rem; align-items: center;">
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle Theme">
+                <span class="tt-icon dark-icon">☀️</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ===== SIDE DRAWER MENU ===== -->
+    <div class="overlay" id="overlay"></div>
+    <aside class="side-menu" id="sideMenu" role="navigation" aria-label="Main Navigation">
+        <div class="menu-header">
+            <div class="menu-avatar">
+                <img src="logo.png" alt="Gram Shiksha Logo" class="logo-img menu-logo-img" />
+            </div>
+            <div class="menu-user-info">
+                <h3>Welcome, Student!</h3>
+                <p>Gram Shiksha</p>
+            </div>
+            <button class="menu-close" id="menuClose" aria-label="Close Menu">&#10005;</button>
+        </div>
+
+        <ul class="menu-list" role="list">
+            <li>
+                <a href="#" class="menu-item active" id="nav-home" data-section="home" role="menuitem">
+                    <span class="menu-icon">🏠</span>
+                    <span class="menu-label">Home</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <!-- Mentor-only item -->
+            <li class="mentor-only-nav" style="display:none">
+                <a href="#" class="menu-item menu-item-mentor" id="nav-mentor" data-section="mentor" role="menuitem">
+                    <span class="menu-icon">👨‍🏫</span>
+                    <span class="menu-label">Mentor Dashboard</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" class="menu-item" id="nav-schedule" data-section="schedule" role="menuitem">
+                    <span class="menu-icon">📅</span>
+                    <span class="menu-label">Schedule</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" class="menu-item" id="nav-joinclass" data-section="joinclass" role="menuitem">
+                    <span class="menu-icon">🎥</span>
+                    <span class="menu-label">Join Class</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" class="menu-item" id="nav-history" data-section="history" role="menuitem">
+                    <span class="menu-icon">📜</span>
+                    <span class="menu-label">History</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" class="menu-item" id="nav-studymaterial" data-section="studymaterial" role="menuitem">
+                    <span class="menu-icon">📚</span>
+                    <span class="menu-label">Study Material</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+            <li>
+                <a href="#" class="menu-item" id="nav-progress" data-section="progress" role="menuitem">
+                    <span class="menu-icon">📊</span>
+                    <span class="menu-label">Student Progress</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+
+            <li>
+                <a href="#" class="menu-item menu-logout" onclick="logout()" role="menuitem">
+                    <span class="menu-icon">🚪</span>
+                    <span class="menu-label">Logout</span>
+                    <span class="menu-arrow">›</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="menu-footer">
+            <p>v1.0 • Gram Shiksha</p>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="main-content" id="mainContent">
+
+        <!-- AUTH SECTION REMOVED -->
+
+        <!-- HOME SECTION -->
+        <section class="section active" id="section-home">
+            <!-- Hero -->
+            <div class="hero">
+                <div class="hero-bg-shapes">
+                    <div class="shape shape1"></div>
+                    <div class="shape shape2"></div>
+                    <div class="shape shape3"></div>
+                    <div class="shape shape4"></div>
+                </div>
+                <div class="hero-content">
+                    <div class="hero-badge">🚀 Next-Gen Learning Platform</div>
+                    <h1 class="hero-title">Gram <br /><span class="gradient-text">Shiksha</span></h1>
+                    <p class="hero-subtitle">"Learn Anytime , Anywhere".</p>
+                    <div class="hero-buttons">
+                        <button class="btn btn-primary" onclick="showSection('joinclass')">Join a Class 🎥</button>
+                        <button class="btn btn-outline" onclick="showSection('schedule')">View Schedule 📅</button>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <div class="floating-card card-violet">
+                        <span class="live-badge">LIVE</span>
+                        <span>Mathematics</span>
+                        <span class="students-count">👥 24</span>
+                    </div>
+                    <div class="floating-card card-pink">
+                        <span>Physics Class</span>
+                        <span class="timer-badge">⏱ 12m</span>
+                    </div>
+                    <div class="floating-card card-cyan">
+                        <span>Study Groups</span>
+                        <span class="students-count">👥 156</span>
+                    </div>
+                </div>
+
+            </div>
+            <!-- Stats -->
+            <div class="stats-bar stats-3col">
+                <div class="stat-item">
+                    <div class="stat-num" style="color:#7c3aed">2,847</div>
+                    <div class="stat-label">Active Students</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" style="color:#ec4899">148</div>
+                    <div class="stat-label">Classes Today</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num" style="color:#0ea5e9">560+</div>
+                    <div class="stat-label">Study Materials</div>
+                </div>
+            </div>
+
+            <!-- Info strip -->
+            <div class="home-info-strip">
+                <div class="his-item">
+                    <span class="his-icon">�</span>
+                    <div>
+                        <strong>Secure &amp; Private</strong>
+                        <p>All sessions are end-to-end encrypted</p>
+                    </div>
+                </div>
+                <div class="his-item">
+                    <span class="his-icon">🌐</span>
+                    <div>
+                        <strong>Learn Anywhere</strong>
+                        <p>Works on mobile, tablet &amp; desktop</p>
+                    </div>
+                </div>
+                <div class="his-item">
+                    <span class="his-icon">🤖</span>
+                    <div>
+                        <strong>AI-Powered</strong>
+                        <p>Smart tutoring &amp; personalised learning</p>
+                    </div>
+                </div>
+                <div class="his-item">
+                    <span class="his-icon">⚡</span>
+                    <div>
+                        <strong>Real-Time</strong>
+                        <p>Instant notifications &amp; live updates</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- LOGIN MODALS REMOVED -->
+
+        <!-- ===== MENTOR DASHBOARD SECTION ===== -->
+        <section class="section" id="section-mentor">
+            <div class="mentor-dashboard-header">
+                <div class="mdb-left">
+                    <div class="mdb-avatar">👨‍🏫</div>
+                    <div>
+                        <h1 class="mdb-title">Mentor <span class="gradient-text">Dashboard</span></h1>
+                        <p class="mdb-sub" id="mentorWelcomeSub">Welcome back, Mentor! Manage your sessions & students.
+                        </p>
+                    </div>
+                </div>
+                <div class="mdb-date">📅 <span id="mentorDateLabel"></span></div>
+            </div>
+
+            <!-- Mentor Stats -->
+            <div class="mentor-stats-row">
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#7c3aed,#ec4899)">
+                    <div class="msc-icon">👥</div>
+                    <div class="msc-val" id="msc-students">24</div>
+                    <div class="msc-label">My Students</div>
+                </div>
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#0ea5e9,#06b6d4)">
+                    <div class="msc-icon">📡</div>
+                    <div class="msc-val" id="msc-sessions">0</div>
+                    <div class="msc-label">Sessions Posted</div>
+                </div>
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#10b981,#0ea5e9)">
+                    <div class="msc-icon">✅</div>
+                    <div class="msc-val">87%</div>
+                    <div class="msc-label">Avg. Attendance</div>
+                </div>
+                <div class="mentor-stat-card" style="--msc:linear-gradient(135deg,#f59e0b,#f43f5e)">
+                    <div class="msc-icon">⭐</div>
+                    <div class="msc-val">4.9</div>
+                    <div class="msc-label">Rating</div>
+                </div>
+            </div>
+
+            <!-- Two-column layout -->
+            <div class="mentor-grid">
+
+                <!-- LEFT: Post Session -->
+                <div class="mentor-col">
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📡</span>
+                            <h3>Post Online Session</h3>
+                        </div>
+                        <form id="postSessionForm" class="post-session-form" onsubmit="postSession(event)">
+                            <div class="pf-group">
+                                <label>📚 Subject / Topic</label>
+                                <input type="text" id="ps-subject" placeholder="e.g. Mathematics — Calculus" required />
+                            </div>
+                            <div class="pf-group">
+                                <label>📝 Description</label>
+                                <textarea id="ps-desc" placeholder="What will students learn in this session?"
+                                    rows="3"></textarea>
+                            </div>
+                            <div class="pf-row">
+                                <div class="pf-group">
+                                    <label>📅 Date</label>
+                                    <input type="date" id="ps-date" required />
+                                </div>
+                                <div class="pf-group">
+                                    <label>⏰ Time</label>
+                                    <input type="time" id="ps-time" required />
+                                </div>
+                            </div>
+                            <div class="pf-row">
+                                <div class="pf-group">
+                                    <label>⏱ Duration</label>
+                                    <select id="ps-duration">
+                                        <option value="30 min">30 min</option>
+                                        <option value="45 min">45 min</option>
+                                        <option value="1 hour" selected>1 hour</option>
+                                        <option value="1.5 hours">1.5 hours</option>
+                                        <option value="2 hours">2 hours</option>
+                                    </select>
+                                </div>
+                                <div class="pf-group">
+                                    <label>🔑 Class Code</label>
+                                    <input type="text" id="ps-code" placeholder="Enter custom code or leave blank" />
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary pf-submit-btn">📡 Post Session</button>
+                        </form>
+                    </div>
+
+                    <!-- Posted Sessions List -->
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📋</span>
+                            <h3>Your Posted Sessions</h3>
+                        </div>
+                        <div id="postedSessionsList" class="posted-sessions-list">
+                            <div class="no-sessions-placeholder">
+                                <span>🗓️</span>
+                                <p>No sessions posted yet. Use the form above to schedule your first session!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT: Student Activity -->
+                <div class="mentor-col">
+                    <!-- Online Now -->
+                    <div class="mentor-card">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🟢</span>
+                            <h3>Students Online Now</h3>
+                            <span class="online-count-badge" id="onlineCountBadge">4 online</span>
+                        </div>
+                        <div class="mentor-online-list" id="mentorOnlineList">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Student Activity Feed -->
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📊</span>
+                            <h3>Student Activity</h3>
+                        </div>
+                        <div class="student-activity-list" id="studentActivityList">
+                            <!-- populated by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Quick Class Action -->
+                    <div class="mentor-card mentor-start-live" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">🔴</span>
+                            <h3>Start Live Class Now</h3>
+                        </div>
+                        <p class="mentor-live-sub">Instantly start a live session — students will be notified.</p>
+                        <div class="pf-row" style="margin-top:1rem">
+                            <input type="text" id="liveSubject" placeholder="Subject name..." class="pf-inline-input" />
+                            <button class="btn btn-primary" onclick="startLiveClass()">🔴 Go Live</button>
+                        </div>
+                        <div id="liveClassStatus" class="live-class-status" style="display:none"></div>
+                    </div>
+
+                    <!-- Upload Study Material (NEW) -->
+                    <div class="mentor-card" style="margin-top:1.5rem">
+                        <div class="mentor-card-header">
+                            <span class="mc-header-icon">📚</span>
+                            <h3>Add Study Material</h3>
+                        </div>
+                        <form id="addMaterialForm" class="post-session-form" onsubmit="addStudyMaterial(event)">
+                            <div class="pf-group">
+                                <label>📄 Material Title</label>
+                                <input type="text" id="mat-title" placeholder="e.g. Calculus Chapter 1" required />
+                            </div>
+                            <div class="pf-group">
+                                <label>📑 Type</label>
+                                <select id="mat-type">
+                                    <option value="PDF">📄 PDF Document</option>
+                                    <option value="Video">🎬 Video Lecture</option>
+                                    <option value="Code">💻 Source Code</option>
+                                    <option value="Quiz">📝 Interactive Quiz</option>
+                                </select>
+                            </div>
+                            <div class="pf-group">
+                                <label>🔗 Resource Link / URL</label>
+                                <input type="url" id="mat-link" placeholder="https://..." required />
+                            </div>
+                            <button type="submit" class="btn btn-primary pf-submit-btn" style="background:var(--sky)">📚 Add Material</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SCHEDULE SECTION -->
+        <section class="section" id="section-schedule">
+            <div class="page-header" style="--header-color: #7c3aed">
+                <div class="page-header-icon">📅</div>
+                <h2>Class Schedule</h2>
+                <p>Your upcoming sessions for this week</p>
+            </div>
+
+            <div class="schedule-tabs">
+                <button class="stab active" onclick="filterSchedule('today', this)">Today</button>
+                <button class="stab" onclick="filterSchedule('tomorrow', this)">Tomorrow</button>
+                <button class="stab" onclick="filterSchedule('week', this)">This Week</button>
+            </div>
+
+            <div class="schedule-list" id="scheduleList">
+                <div class="schedule-card" data-day="today" style="--sc-color: #7c3aed">
+                    <div class="sc-time">
+                        <div class="sc-hour">09:00</div>
+                        <div class="sc-ampm">AM</div>
+                    </div>
+                    <div class="sc-info">
+                        <h3>Mathematics — Calculus</h3>
+                        <p>📍 Room: Virtual Lab A &nbsp;|&nbsp; 👤 Prof. Sharma</p>
+                        <div class="sc-tags"><span class="tag tag-live">🔴 Live Now</span><span
+                                class="tag tag-subject">Mathematics</span></div>
+                    </div>
+                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                </div>
+
+                <div class="schedule-card" data-day="today" style="--sc-color: #ec4899">
+                    <div class="sc-time">
+                        <div class="sc-hour">11:30</div>
+                        <div class="sc-ampm">AM</div>
+                    </div>
+                    <div class="sc-info">
+                        <h3>Physics — Quantum Mechanics</h3>
+                        <p>📍 Room: Science Hall &nbsp;|&nbsp; 👤 Dr. Patel</p>
+                        <div class="sc-tags"><span class="tag tag-upcoming">⏰ Upcoming</span><span
+                                class="tag tag-subject">Science</span></div>
+                    </div>
+                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                </div>
+
+                <div class="schedule-card" data-day="today" style="--sc-color: #0ea5e9">
+                    <div class="sc-time">
+                        <div class="sc-hour">02:00</div>
+                        <div class="sc-ampm">PM</div>
+                    </div>
+                    <div class="sc-info">
+                        <h3>Computer Science — AI & ML</h3>
+                        <p>📍 Room: Tech Studio &nbsp;|&nbsp; 👤 Prof. Kumar</p>
+                        <div class="sc-tags"><span class="tag tag-upcoming">⏰ Upcoming</span><span
+                                class="tag tag-subject">CS</span></div>
+                    </div>
+                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                </div>
+
+                <div class="schedule-card" data-day="tomorrow" style="--sc-color: #f59e0b">
+                    <div class="sc-time">
+                        <div class="sc-hour">10:00</div>
+                        <div class="sc-ampm">AM</div>
+                    </div>
+                    <div class="sc-info">
+                        <h3>Chemistry — Organic Compounds</h3>
+                        <p>📍 Room: Chem Lab &nbsp;|&nbsp; 👤 Dr. Nair</p>
+                        <div class="sc-tags"><span class="tag tag-upcoming">⏰ Tomorrow</span><span
+                                class="tag tag-subject">Chemistry</span></div>
+                    </div>
+                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                </div>
+
+                <div class="schedule-card" data-day="week" style="--sc-color: #10b981">
+                    <div class="sc-time">
+                        <div class="sc-hour">03:00</div>
+                        <div class="sc-ampm">PM</div>
+                    </div>
+                    <div class="sc-info">
+                        <h3>English — Creative Writing</h3>
+                        <p>📍 Room: Language Hub &nbsp;|&nbsp; 👤 Ms. Verma</p>
+                        <div class="sc-tags"><span class="tag tag-upcoming">📆 This Week</span><span
+                                class="tag tag-subject">English</span></div>
+                    </div>
+                    <button class="btn-join-small" onclick="showSection('joinclass')">Join</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- JOIN CLASS SECTION -->
+        <section class="section" id="section-joinclass">
+            <div class="page-header" style="--header-color: #ec4899">
+                <div class="page-header-icon">🎥</div>
+                <h2>Join Class</h2>
+                <p>Connect to your live sessions instantly</p>
+            </div>
+
+            <div class="join-search">
+                <input type="text" id="classCodeInput" placeholder="🔑 Enter Class Code (e.g. SRC-2024)"
+                    class="join-input" />
+                <button class="btn btn-primary" onclick="joinByCode()">Join Now</button>
+            </div>
+
+            <div class="section-header" style="margin-top:2rem">
+                <h3 class="progress-section-heading" style="font-size:1.3rem">🔴 Live Classes Right Now</h3>
+            </div>
+
+            <div class="live-classes-grid">
+                <div class="live-card" style="--lc-color1: #7c3aed; --lc-color2: #ec4899">
+                    <div class="live-pulse"></div>
+                    <div class="live-card-header">
+                        <span class="live-subject-icon">📐</span>
+                        <div>
+                            <h3>Mathematics</h3>
+                            <p>Differential Equations</p>
+                        </div>
+                        <span class="live-badge-big">LIVE</span>
+                    </div>
+                    <div class="live-card-meta">
+                        <span>👤 Prof. Sharma</span>
+                        <span>👥 32 students</span>
+                        <span>⏱ 25 min</span>
+                    </div>
+                    <button class="btn-join-live" onclick="joinClass('Mathematics')">🎥 Join Session</button>
+                </div>
+
+                <div class="live-card" style="--lc-color1: #0ea5e9; --lc-color2: #06b6d4">
+                    <div class="live-pulse"></div>
+                    <div class="live-card-header">
+                        <span class="live-subject-icon">💻</span>
+                        <div>
+                            <h3>Computer Science</h3>
+                            <p>Data Structures & Algo</p>
+                        </div>
+                        <span class="live-badge-big">LIVE</span>
+                    </div>
+                    <div class="live-card-meta">
+                        <span>👤 Prof. Rajan</span>
+                        <span>👥 28 students</span>
+                        <span>⏱ 10 min</span>
+                    </div>
+                    <button class="btn-join-live" onclick="joinClass('Computer Science')">🎥 Join Session</button>
+                </div>
+
+                <div class="live-card" style="--lc-color1: #f59e0b; --lc-color2: #f43f5e">
+                    <div class="live-pulse"></div>
+                    <div class="live-card-header">
+                        <span class="live-subject-icon">🔬</span>
+                        <div>
+                            <h3>Biology</h3>
+                            <p>Cell Division & Genetics</p>
+                        </div>
+                        <span class="live-badge-big">LIVE</span>
+                    </div>
+                    <div class="live-card-meta">
+                        <span>👤 Dr. Agarwal</span>
+                        <span>👥 41 students</span>
+                        <span>⏱ 42 min</span>
+                    </div>
+                    <button class="btn-join-live" onclick="joinClass('Biology')">🎥 Join Session</button>
+                </div>
+            </div>
+
+            <!-- Mock classroom viewer -->
+            <div class="classroom-preview" id="classroomPreview" style="display:none">
+                <div class="classroom-top-bar">
+                    <span id="classroomTitle">📐 Mathematics — Live Session</span>
+                    <button class="btn-leave" onclick="leaveClass()">Leave ✕</button>
+                </div>
+                <div class="classroom-screen">
+                    <div class="classroom-screen-inner">
+                        <div class="screen-content">
+                            <div class="screen-icon">🖥️</div>
+                            <p>Live class is in progress...</p>
+                            <p class="screen-sub">Interactive whiteboard &amp; screen share active</p>
+                        </div>
+                    </div>
+                    <div class="classroom-controls">
+                        <button class="ctrl-btn" title="Microphone">🎤</button>
+                        <button class="ctrl-btn" title="Camera">📷</button>
+                        <button class="ctrl-btn" title="Chat">💬</button>
+                        <button class="ctrl-btn" title="Raise Hand">✋</button>
+                        <button class="ctrl-btn ctrl-danger" onclick="leaveClass()" title="Leave">📵</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- HISTORY SECTION -->
+        <section class="section" id="section-history">
+            <div class="page-header" style="--header-color: #0ea5e9">
+                <div class="page-header-icon">📜</div>
+                <h2>Class History</h2>
+                <p>All your past sessions and recordings</p>
+            </div>
+
+            <div class="history-filter">
+                <button class="hfbtn active" onclick="filterHistory('all', this)">All</button>
+                <button class="hfbtn" onclick="filterHistory('math', this)">Math</button>
+                <button class="hfbtn" onclick="filterHistory('science', this)">Science</button>
+                <button class="hfbtn" onclick="filterHistory('cs', this)">CS</button>
+            </div>
+
+            <div class="history-list" id="historyList">
+                <div class="history-card" data-cat="math" style="--hc-color: #7c3aed">
+                    <div class="hc-date-badge">Feb 20</div>
+                    <div class="hc-info">
+                        <div class="hc-icon">📐</div>
+                        <div>
+                            <h3>Mathematics — Linear Algebra</h3>
+                            <p>Prof. Sharma &nbsp;|&nbsp; Duration: 1h 15m</p>
+                        </div>
+                    </div>
+                    <div class="hc-stats">
+                        <span class="hc-stat">✅ Attended</span>
+                        <span class="hc-stat">📊 87%</span>
+                        <button class="btn-watch">▶ Watch</button>
+                    </div>
+                </div>
+
+                <div class="history-card" data-cat="science" style="--hc-color: #ec4899">
+                    <div class="hc-date-badge">Feb 19</div>
+                    <div class="hc-info">
+                        <div class="hc-icon">🔬</div>
+                        <div>
+                            <h3>Physics — Wave Optics</h3>
+                            <p>Dr. Patel &nbsp;|&nbsp; Duration: 58m</p>
+                        </div>
+                    </div>
+                    <div class="hc-stats">
+                        <span class="hc-stat">✅ Attended</span>
+                        <span class="hc-stat">📊 92%</span>
+                        <button class="btn-watch">▶ Watch</button>
+                    </div>
+                </div>
+
+                <div class="history-card" data-cat="cs" style="--hc-color: #0ea5e9">
+                    <div class="hc-date-badge">Feb 18</div>
+                    <div class="hc-info">
+                        <div class="hc-icon">💻</div>
+                        <div>
+                            <h3>CS — Machine Learning Basics</h3>
+                            <p>Prof. Kumar &nbsp;|&nbsp; Duration: 1h 30m</p>
+                        </div>
+                    </div>
+                    <div class="hc-stats">
+                        <span class="hc-stat">❌ Missed</span>
+                        <span class="hc-stat">📊 —</span>
+                        <button class="btn-watch">▶ Watch</button>
+                    </div>
+                </div>
+
+                <div class="history-card" data-cat="math" style="--hc-color: #f59e0b">
+                    <div class="hc-date-badge">Feb 17</div>
+                    <div class="hc-info">
+                        <div class="hc-icon">📐</div>
+                        <div>
+                            <h3>Mathematics — Integration</h3>
+                            <p>Prof. Sharma &nbsp;|&nbsp; Duration: 1h 5m</p>
+                        </div>
+                    </div>
+                    <div class="hc-stats">
+                        <span class="hc-stat">✅ Attended</span>
+                        <span class="hc-stat">📊 95%</span>
+                        <button class="btn-watch">▶ Watch</button>
+                    </div>
+                </div>
+
+                <div class="history-card" data-cat="science" style="--hc-color: #10b981">
+                    <div class="hc-date-badge">Feb 16</div>
+                    <div class="hc-info">
+                        <div class="hc-icon">🧪</div>
+                        <div>
+                            <h3>Chemistry — Reaction Kinetics</h3>
+                            <p>Dr. Nair &nbsp;|&nbsp; Duration: 45m</p>
+                        </div>
+                    </div>
+                    <div class="hc-stats">
+                        <span class="hc-stat">✅ Attended</span>
+                        <span class="hc-stat">📊 89%</span>
+                        <button class="btn-watch">▶ Watch</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STUDY MATERIAL SECTION -->
+        <section class="section" id="section-studymaterial">
+            <div class="page-header" style="--header-color: #f59e0b">
+                <div class="page-header-icon">📚</div>
+                <h2>Study Material</h2>
+                <p>Curated resources for every subject</p>
+            </div>
+
+            <div class="search-bar">
+                <input type="text" placeholder="🔍 Search materials..." class="search-input"
+                    oninput="searchMaterials(this.value)" />
+            </div>
+
+            <div class="materials-grid" id="materialsGrid">
+                <div class="material-card" style="--mc-color: #7c3aed" data-search="mathematics calculus notes pdf">
+                    <div class="mc-type-badge">📄 PDF</div>
+                    <div class="mc-icon">📐</div>
+                    <h3>Calculus Notes</h3>
+                    <p>Mathematics • Chapter 5-8</p>
+                    <div class="mc-footer">
+                        <span>2.4 MB</span>
+                        <button class="btn-download">⬇ Download</button>
+                    </div>
+                </div>
+
+                <div class="material-card" style="--mc-color: #ec4899" data-search="physics quantum mechanics video">
+                    <div class="mc-type-badge">🎬 Video</div>
+                    <div class="mc-icon">🔬</div>
+                    <h3>Quantum Mechanics</h3>
+                    <p>Physics • Lecture Series</p>
+                    <div class="mc-footer">
+                        <span>45 min</span>
+                        <button class="btn-download">▶ Watch</button>
+                    </div>
+                </div>
+
+                <div class="material-card" style="--mc-color: #0ea5e9"
+                    data-search="computer science python programming code">
+                    <div class="mc-type-badge">💻 Code</div>
+                    <div class="mc-icon">🐍</div>
+                    <h3>Python Programming</h3>
+                    <p>CS • Starter Pack</p>
+                    <div class="mc-footer">
+                        <span>14 files</span>
+                        <button class="btn-download">⬇ Download</button>
+                    </div>
+                </div>
+
+                <div class="material-card" style="--mc-color: #f59e0b"
+                    data-search="chemistry organic compounds pdf notes">
+                    <div class="mc-type-badge">📄 PDF</div>
+                    <div class="mc-icon">🧪</div>
+                    <h3>Organic Chemistry</h3>
+                    <p>Chemistry • Full Guide</p>
+                    <div class="mc-footer">
+                        <span>5.1 MB</span>
+                        <button class="btn-download">⬇ Download</button>
+                    </div>
+                </div>
+
+                <div class="material-card" style="--mc-color: #10b981"
+                    data-search="biology cell genetics quiz practice">
+                    <div class="mc-type-badge">📝 Quiz</div>
+                    <div class="mc-icon">🧬</div>
+                    <h3>Cell Biology Quiz</h3>
+                    <p>Biology • Practice Test</p>
+                    <div class="mc-footer">
+                        <span>25 Qs</span>
+                        <button class="btn-download">▶ Start</button>
+                    </div>
+                </div>
+
+                <div class="material-card" style="--mc-color: #f43f5e"
+                    data-search="english literature shakespeare notes">
+                    <div class="mc-type-badge">📄 PDF</div>
+                    <div class="mc-icon">📖</div>
+                    <h3>English Literature</h3>
+                    <p>English • Shakespeare</p>
+                    <div class="mc-footer">
+                        <span>1.8 MB</span>
+                        <button class="btn-download">⬇ Download</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STUDENT PROGRESS SECTION -->
+        <section class="section" id="section-progress">
+            <div class="page-header" style="--header-color: #10b981">
+                <div class="page-header-icon">📊</div>
+                <h2>Student Progress</h2>
+                <p>Your performance analytics & insights</p>
+            </div>
+
+            <!-- Overall Stats -->
+            <div class="progress-overview">
+                <div class="progress-stat-card" style="--psc-color: #7c3aed">
+                    <div class="psc-icon">🏆</div>
+                    <div class="psc-val">A+</div>
+                    <div class="psc-label">Overall Grade</div>
+                </div>
+                <div class="progress-stat-card" style="--psc-color: #0ea5e9">
+                    <div class="psc-icon">📅</div>
+                    <div class="psc-val">89%</div>
+                    <div class="psc-label">Attendance</div>
+                </div>
+                <div class="progress-stat-card" style="--psc-color: #ec4899">
+                    <div class="psc-icon">✅</div>
+                    <div class="psc-val">72%</div>
+                    <div class="psc-label">Tasks Done</div>
+                </div>
+                <div class="progress-stat-card" style="--psc-color: #f59e0b">
+                    <div class="psc-icon">⭐</div>
+                    <div class="psc-val">4.8</div>
+                    <div class="psc-label">Avg. Score</div>
+                </div>
+            </div>
+
+            <!-- Subject progress bars -->
+            <div class="section-header">
+                <h3 class="progress-section-heading">Subject-Wise Performance</h3>
+            </div>
+            <div class="subject-progress">
+                <div class="subj-progress-item">
+                    <div class="subj-header">
+                        <span>📐 Mathematics</span>
+                        <span style="color:#7c3aed;font-weight:700">92%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="--fill-color: #7c3aed; --fill-width: 92%"></div>
+                    </div>
+                </div>
+                <div class="subj-progress-item">
+                    <div class="subj-header">
+                        <span>🔬 Physics</span>
+                        <span style="color:#ec4899;font-weight:700">78%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="--fill-color: #ec4899; --fill-width: 78%"></div>
+                    </div>
+                </div>
+                <div class="subj-progress-item">
+                    <div class="subj-header">
+                        <span>💻 Computer Science</span>
+                        <span style="color:#0ea5e9;font-weight:700">96%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="--fill-color: #0ea5e9; --fill-width: 96%"></div>
+                    </div>
+                </div>
+                <div class="subj-progress-item">
+                    <div class="subj-header">
+                        <span>🧪 Chemistry</span>
+                        <span style="color:#f59e0b;font-weight:700">84%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="--fill-color: #f59e0b; --fill-width: 84%"></div>
+                    </div>
+                </div>
+                <div class="subj-progress-item">
+                    <div class="subj-header">
+                        <span>🧬 Biology</span>
+                        <span style="color:#10b981;font-weight:700">88%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="--fill-color: #10b981; --fill-width: 88%"></div>
+                    </div>
+                </div>
+                <div class="subj-progress-item">
+                    <div class="subj-header">
+                        <span>📖 English</span>
+                        <span style="color:#f43f5e;font-weight:700">74%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="--fill-color: #f43f5e; --fill-width: 74%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Achievements -->
+            <div class="section-header" style="margin-top:2rem">
+                <h3 class="progress-section-heading">🏅 Recent Achievements</h3>
+            </div>
+            <div class="achievements-grid">
+                <div class="achievement-badge" style="--ab-color: #f59e0b">
+                    <div class="ab-icon">🥇</div>
+                    <div class="ab-title">Top Scorer</div>
+                    <div class="ab-sub">Mathematics Quiz</div>
+                </div>
+                <div class="achievement-badge" style="--ab-color: #0ea5e9">
+                    <div class="ab-icon">🎯</div>
+                    <div class="ab-title">Perfect Attendance</div>
+                    <div class="ab-sub">February Week 1</div>
+                </div>
+                <div class="achievement-badge" style="--ab-color: #7c3aed">
+                    <div class="ab-icon">🚀</div>
+                    <div class="ab-title">Fast Learner</div>
+                    <div class="ab-sub">AI Training Module</div>
+                </div>
+                <div class="achievement-badge" style="--ab-color: #10b981">
+                    <div class="ab-icon">🌟</div>
+                    <div class="ab-title">All Tasks Done</div>
+                    <div class="ab-sub">CS Assignment Week</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI HISTORY SECTION REMOVED -->
+
+    </main>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ===== AI CHATBOT WIDGET ===== -->
+    <!-- Floating toggle button -->
+    <button class="chatbot-fab" id="chatbotFab" onclick="toggleChatbot()" aria-label="Open AI Tutor Chat">
+        <span class="fab-icon-open">🤖</span>
+        <span class="fab-icon-close" style="display:none">✕</span>
+        <span class="fab-badge" id="fabBadge">AI</span>
+    </button>
+
+    <!-- Chat Panel -->
+    <div class="chatbot-panel" id="chatbotPanel" role="dialog" aria-label="AI Tutor Chatbot">
+        <!-- Chat Header -->
+        <div class="chatbot-header">
+            <div class="chatbot-header-left">
+                <div class="chatbot-avatar">
+                    <span>🤖</span>
+                    <span class="chatbot-online-dot"></span>
+                </div>
+                <div class="chatbot-header-info">
+                    <h4>NEXORA AI</h4>
+                    <span class="chatbot-status">Online • Powered by AI</span>
+                </div>
+            </div>
+            <div class="chatbot-header-actions">
+                <button class="chatbot-voice-toggle" id="voiceToggleBtn" onclick="toggleVoiceOutput()"
+                    title="Toggle voice output (read responses aloud)" aria-label="Toggle voice output"
+                    aria-pressed="true">
+                    🔊
+                </button>
+                <button class="chatbot-clear" onclick="clearChat()" title="Clear chat"
+                    aria-label="Clear chat">🗑️</button>
+                <button class="chatbot-close-btn" onclick="toggleChatbot()" title="Close"
+                    aria-label="Close chatbot">✕</button>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div class="chatbot-messages" id="chatbotMessages">
+            <!-- Welcome message injected by JS -->
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing-indicator" id="typingIndicator" style="display:none">
+            <div class="typing-avatar">🤖</div>
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        </div>
+
+        <!-- Quick suggestion chips -->
+        <div class="chatbot-chips" id="chatbotChips">
+            <button class="chip" onclick="sendChip(this)">📐 Explain Calculus</button>
+            <button class="chip" onclick="sendChip(this)">🔬 Help with Physics</button>
+            <button class="chip" onclick="sendChip(this)">💻 Python tips</button>
+            <button class="chip" onclick="sendChip(this)">📅 Study plan</button>
+        </div>
+
+        <!-- Input area -->
+        <div class="chatbot-input-area">
+            <!-- Listening status label -->
+            <div class="listening-label" id="listeningLabel" aria-live="assertive">
+                <span class="listening-dot"></span> Listening...
+            </div>
+            <textarea id="chatbotInput" class="chatbot-textarea" placeholder="Ask me anything... or tap 🎤 to speak"
+                rows="1" onkeydown="chatKeyDown(event)" oninput="autoResizeTextarea(this)"
+                aria-label="Type or speak your question"></textarea>
+            <!-- Mic button -->
+            <button class="chatbot-mic-btn" id="chatbotMicBtn" onclick="toggleVoiceInput()"
+                aria-label="Start voice input" title="Speak your question (Ctrl+Shift+V)">
+                🎤
+            </button>
+            <button class="chatbot-send-btn" id="chatbotSendBtn" onclick="sendChatMessage()" aria-label="Send message">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                    <path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+            </button>
+        </div>
+        <div class="chatbot-footer-note">
+            🔊 Voice AI active • Ctrl+Shift+V = Quick voice • Powered by Pollinations AI
+        </div>
+
+        <!-- ARIA live region for screen readers -->
+        <div id="ariaLiveRegion" aria-live="polite" aria-atomic="true"
+            style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
