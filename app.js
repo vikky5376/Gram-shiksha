@@ -27,14 +27,20 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
 const db = firebase.firestore();
+const storage = firebase.storage();
+
+// ---- Socket.io & WebRTC Signaling ----
+const SOCKET_SERVER = window.location.origin; // Assuming signaling server is on same host or update as needed
+let socket = null;
+let peers = {}; // For mentor to track students
+let myPeer = null; // For student to track mentor
 
 // ---- Theme State ----
 let currentTheme = localStorage.getItem('theme') || 'dark';
 
 // ---- Auth State ----
-let currentAuthEmail = '';
-let currentAuthMode = 'signup';
-let currentUser = { full_name: 'Student', role: 'student', phone: '' };
+let isSignupMode = false;
+let currentUser = { full_name: 'Student', role: 'student', email: '' };
 
 // ---- Session State ----
 let onlineUsers = [
@@ -169,17 +175,7 @@ function searchMaterials(query) {
 // ============================================
 //  JOIN CLASS LOGIC
 // ============================================
-function joinClass(subject) {
-    const preview = document.getElementById('classroomPreview');
-    const title = document.getElementById('classroomTitle');
-    const icon = subject === 'Mathematics' ? '📐'
-        : subject === 'Computer Science' ? '💻'
-            : subject === 'Biology' ? '🔬' : '📚';
-    title.textContent = icon + ' ' + subject + ' — Live Session';
-    preview.style.display = 'block';
-    preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    showToast('✅ Joined ' + subject + ' class successfully!');
-}
+// function joinClass removed - duplicate at end of file
 
 function joinByCode() {
     const code = document.getElementById('classCodeInput').value.trim();
@@ -187,15 +183,7 @@ function joinByCode() {
         showToast('⚠️ Please enter a class code first!');
         return;
     }
-    showToast('🔗 Joining class with code: ' + code + ' ...');
-    setTimeout(() => {
-        const preview = document.getElementById('classroomPreview');
-        const title = document.getElementById('classroomTitle');
-        title.textContent = '📚 Class ' + code + ' — Live Session';
-        preview.style.display = 'block';
-        preview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        showToast('✅ Successfully joined class: ' + code);
-    }, 1200);
+    openMediaSetup(code, 'student');
 }
 
 function leaveClass() {
@@ -316,6 +304,7 @@ function portalLogin(role) {
     }, 1000);
 }
 
+// Combined logout function
 async function logout() {
     showToast('👋 Logging out...');
     try {
@@ -325,18 +314,39 @@ async function logout() {
     }
     
     setTimeout(() => {
-        currentUser = { full_name: 'Student', role: 'student', phone: '' };
-        currentAuthEmail = '';
-
+        // Full state reset
+        currentUser = { full_name: 'Student', role: 'student', email: '' };
+        postedSessions = [];
+        mentorMaterials = [];
+        
         const welcomeText = document.querySelector('.menu-user-info h3');
         if (welcomeText) welcomeText.textContent = 'Welcome, Student!';
 
+        // Return to login screen
         document.getElementById('loginWrapper').style.display = 'flex';
+        if (navbar) navbar.style.display = 'none';
+        const mainContent = document.getElementById('mainContent');
+        if (mainContent) mainContent.style.display = 'none';
+        const chatbotFab = document.getElementById('chatbotFab');
+        if (chatbotFab) chatbotFab.style.display = 'none';
+
+        // Clear intervals
+        if(window._onlinePolling) clearInterval(window._onlinePolling);
+        if(window._adminAuthRefresh) clearInterval(window._adminAuthRefresh);
+        if(window._onlinePollingInterval) clearInterval(window._onlinePollingInterval);
+
         showSection('home');
         applyRoleUI('student');
         closeMenu();
+        
+        // Reset login form
+        const authForm = document.getElementById('firebaseAuthForm');
+        if(authForm) authForm.reset();
+        isSignupMode = false;
+        toggleSignupMode(); // Ensure it's in Sign In mode
+        toggleSignupMode(); // Toggle back to Sign In if it was Sign Up
 
-        showToast('✅ You have been logged out.');
+        showToast('✅ You have been logged out safely.');
     }, 800);
 }
 
@@ -404,10 +414,9 @@ function initMentorDashboard() {
     // Render various sections
     renderMentorOnlineList();
     renderStudentActivity();
-    renderPostedSessions();
+    fetchPostedSessions(); // Real data from Firebase
     renderMentorMaterials();
     renderPermissions();
-    updateSessionCount();
 }
 
 function generateClassCode() {
@@ -443,18 +452,33 @@ function inBackgroundAutoRemove() {
     }
 }
 
-// Listen for absent events (Mentor side)
+// Listen for absent events and live status (Shared state via BroadcastChannel)
 try {
     const bc = new BroadcastChannel('lowbandwidth_class');
     bc.onmessage = (event) => {
         if (currentUser.role === 'mentor' && event.data.type === 'STUDENT_ABSENT') {
             showToast(`⚠️ Alert: ${event.data.name} was auto-removed (left tab/app).`);
-            // Update attendance list dynamically if needed
+        }
+    };
+
+    const bcLive = new BroadcastChannel('gs_live_class');
+    bcLive.onmessage = (event) => {
+        if (currentUser.role === 'student') {
+            if (event.data.type === 'MENTOR_LIVE') {
+                showToast(`🔴 LIVE NOW: ${event.data.mentorName} started "${event.data.subject}"!`, true);
+                fetchPostedSessions(); // Refresh upcoming list to show "Join" button
+            } else if (event.data.type === 'MENTOR_OFFLINE') {
+                if (currentLiveSession) {
+                    showToast('⌛ Mentor has ended the session.');
+                    leaveLiveRoom();
+                }
+                fetchPostedSessions();
+            }
         }
     };
 } catch(e) {}
 
-function postSession(e) {
+async function postSession(e) {
     e.preventDefault();
     const subject = document.getElementById('ps-subject').value.trim();
     const desc = document.getElementById('ps-desc').value.trim();
@@ -469,7 +493,6 @@ function postSession(e) {
     }
 
     const session = {
-        id: Date.now(),
         subject,
         desc: desc || 'No description provided.',
         date,
@@ -477,22 +500,25 @@ function postSession(e) {
         duration,
         code,
         mentor: currentUser.full_name,
-        status: 'scheduled'
+        mentorId: firebase.auth().currentUser?.uid || 'unknown',
+        status: 'scheduled',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    postedSessions.unshift(session);
-    renderPostedSessions();
-    updateSessionCount();
+    try {
+        await db.collection('sessions').add(session);
+        fetchPostedSessions(); // Reload list
+        
+        // Reset form
+        document.getElementById('postSessionForm').reset();
+        document.getElementById('ps-date').valueAsDate = new Date();
+        generateClassCode();
 
-    // Reset form
-    document.getElementById('postSessionForm').reset();
-    document.getElementById('ps-date').valueAsDate = new Date();
-    generateClassCode();
-
-    showToast('✅ Session "' + subject + '" posted successfully! Code: ' + code);
-    
-    // Schedule email for 5 minutes before class
-    scheduleClassEmail(subject, date, time);
+        showToast('✅ Session "' + subject + '" posted successfully! Code: ' + code);
+        scheduleClassEmail(subject, date, time);
+    } catch (err) {
+        showToast('❌ Failed to post session: ' + err.message);
+    }
 }
 
 // EMAIL SCHEDULING (System Mock)
@@ -524,6 +550,25 @@ Date: ${date}
     }
 }
 
+async function fetchPostedSessions() {
+    try {
+        const snap = await db.collection('sessions')
+            .orderBy('date', 'asc')
+            .orderBy('time', 'asc')
+            .get();
+        
+        postedSessions = [];
+        snap.forEach(doc => {
+            postedSessions.push({ id: doc.id, ...doc.data() });
+        });
+        
+        renderPostedSessions();
+        updateSessionCount();
+    } catch(err) {
+        console.warn("Session fetch failed:", err);
+    }
+}
+
 function renderPostedSessions() {
     const list = document.getElementById('postedSessionsList');
     if (!list) return;
@@ -534,9 +579,9 @@ function renderPostedSessions() {
     }
 
     list.innerHTML = postedSessions.map(s => {
-        const d = new Date(s.date + 'T' + s.time);
+        const d = new Date(s.date + 'T' + (s.time || '00:00'));
         const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        const timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        const timeStr = s.time;
         return `
         <div class="posted-session-item">
             <div class="psi-left">
@@ -549,12 +594,13 @@ function renderPostedSessions() {
             </div>
             <div class="psi-right">
                 <span class="psi-code">${s.code}</span>
-                <button class="psi-delete" onclick="deleteSession(${s.id})" title="Remove">🗑️</button>
+                <button class="btn-small" style="background:var(--purple)" onclick="document.getElementById('liveSubject').value='${s.subject}'; showSection('mentor-live')">🎥 Start</button>
+                <button class="psi-delete" onclick="deleteSession('${s.id}')" title="Remove">🗑️</button>
             </div>
         </div>`;
     }).join('');
 
-    // Also populate today's classes on home
+    // Also populate today's classes on mentor home
     const todayList = document.getElementById('homeTodayClassesList');
     if (todayList) {
         const todayStr = new Date().toISOString().split('T')[0];
@@ -572,18 +618,59 @@ function renderPostedSessions() {
             `).join('');
         }
     }
+
+    // Populate Student upcoming sessions
+    const studentList = document.getElementById('studentUpcomingClasses');
+    if (studentList) {
+        if (postedSessions.length === 0) {
+            studentList.innerHTML = `<div class="no-sessions-placeholder"><span>🗓️</span><p>No upcoming classes scheduled yet.</p></div>`;
+        } else {
+            studentList.innerHTML = postedSessions.slice(0, 5).map(s => {
+                const now = new Date();
+                const sDate = new Date(s.date + 'T' + s.time);
+                const isLive = Math.abs(now - sDate) < (1 * 60 * 60 * 1000); // within 1 hour
+
+                return `
+                <div class="sal-item" style="${isLive ? 'background:rgba(244,63,94,0.05); border:1px solid rgba(244,63,94,0.2)' : ''}">
+                    <div class="sal-icon" style="background:${isLive ? '#f43f5e' : '#7c3aed'}">🎥</div>
+                    <div class="sal-info">
+                        <strong>${s.subject}</strong>
+                        <div style="font-size:0.85rem; color:var(--text-muted)">
+                            ${s.date === now.toISOString().split('T')[0] ? 'Today' : s.date} at ${s.time}
+                        </div>
+                        <button class="btn btn-primary" style="margin-top:0.5rem; padding:0.3rem 0.6rem; font-size:0.8rem" onclick="joinClass('${s.subject}')">${isLive ? '🔴 Join Now' : 'Join Room'}</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
 }
 
-function deleteSession(id) {
-    postedSessions = postedSessions.filter(s => s.id !== id);
-    renderPostedSessions();
-    updateSessionCount();
-    showToast('🗑️ Session removed.');
+async function deleteSession(id) {
+    if(!confirm('Are you sure you want to remove this session?')) return;
+    try {
+        await db.collection('sessions').doc(id).delete();
+        fetchPostedSessions();
+        showToast('🗑️ Session removed.');
+    } catch(err) {
+        showToast('❌ Failed to delete: ' + err.message);
+    }
 }
 
 function updateSessionCount() {
-    const el = document.getElementById('msc-sessions');
-    if (el) el.textContent = postedSessions.length;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayCount = postedSessions.filter(s => s.date === todayStr).length;
+    
+    // Updates the summary cards on Mentor Home
+    const mscClasses = document.getElementById('msc-classes'); // Today's count
+    if (mscClasses) mscClasses.textContent = todayCount;
+    
+    const mscPosted = document.getElementById('msc-posted'); // Total sessions posted
+    if (mscPosted) mscPosted.textContent = postedSessions.length;
+    
+    // For legacy sidebar or other counters
+    const legacyEl = document.getElementById('msc-sessions');
+    if (legacyEl) legacyEl.textContent = postedSessions.length;
 }
 
 function addStudyMaterial(e) {
@@ -774,6 +861,160 @@ let isAudioMuted = false;
 let sessionTimer = null;
 let sessionSeconds = 0;
 
+// ---- Media Setup Lobby State ----
+let setupStream = null;
+let isSetupMicOn = true;
+let isSetupCamOn = true;
+let currentLobbyConfig = { subject: '', perspective: '' };
+
+async function openMediaSetup(subject, perspective) {
+    currentLobbyConfig = { subject, perspective };
+    const overlay = document.getElementById('mediaSetupOverlay');
+    const roomDetail = document.getElementById('setupRoomDetail');
+    if(roomDetail) roomDetail.textContent = `Prepare yourself before joining "${subject}"`;
+    if(overlay) {
+        overlay.style.display = 'flex';
+        // Reset buttons to current state
+        const micBtn = document.getElementById('sMicBtn');
+        const camBtn = document.getElementById('sCamBtn');
+        if(micBtn) micBtn.classList.toggle('off', !isSetupMicOn);
+        if(camBtn) camBtn.classList.toggle('off', !isSetupCamOn);
+    }
+    
+    await initMediaSetup();
+}
+
+async function initMediaSetup() {
+    try {
+        const videoSelect = document.getElementById('videoSource');
+        const audioSelect = document.getElementById('audioSource');
+        const errorView = document.getElementById('setupMediaError');
+        const previewVideo = document.getElementById('setupPreviewVideo');
+        
+        if (errorView) errorView.style.display = 'none';
+
+        // Initial permission request to get labels
+        setupStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        
+        // Populate device lists
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        if (videoSelect) videoSelect.innerHTML = '';
+        if (audioSelect) audioSelect.innerHTML = '';
+
+        devices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            if (device.kind === 'videoinput') {
+                option.text = device.label || `Camera ${videoSelect.options.length + 1}`;
+                videoSelect.appendChild(option);
+            } else if (device.kind === 'audioinput') {
+                option.text = device.label || `Microphone ${audioSelect.options.length + 1}`;
+                audioSelect.appendChild(option);
+            }
+        });
+
+        if (previewVideo) {
+            previewVideo.srcObject = setupStream;
+            previewVideo.style.display = 'block';
+        }
+        
+        // Apply current toggle states to the preview stream
+        setupStream.getAudioTracks().forEach(t => t.enabled = isSetupMicOn);
+        setupStream.getVideoTracks().forEach(t => t.enabled = isSetupCamOn);
+
+    } catch (err) {
+        console.error('Lobby Setup Error:', err);
+        const errorView = document.getElementById('setupMediaError');
+        const errorText = document.getElementById('setupErrorText');
+        if (errorView) errorView.style.display = 'flex';
+        
+        let msg = 'Camera/Microphone access is required for live class. Please allow access in browser settings.';
+        if (err.name === 'NotAllowedError') {
+            msg = 'Permission denied. Please allow camera/microphone access in browser settings.';
+        } else if (err.name === 'NotFoundError') {
+            msg = 'No camera or microphone found on your device.';
+        } else if (err.name === 'NotReadableError') {
+            msg = 'Camera or Mic is already in use by another application.';
+        }
+        if (errorText) errorText.textContent = msg;
+    }
+}
+
+async function changeMediaDevice() {
+    if (setupStream) {
+        setupStream.getTracks().forEach(track => track.stop());
+    }
+    
+    const vId = document.getElementById('videoSource').value;
+    const aId = document.getElementById('audioSource').value;
+    
+    try {
+        setupStream = await navigator.mediaDevices.getUserMedia({
+            video: vId ? { deviceId: { exact: vId } } : true,
+            audio: aId ? { deviceId: { exact: aId } } : true
+        });
+        
+        const previewVideo = document.getElementById('setupPreviewVideo');
+        if (previewVideo) previewVideo.srcObject = setupStream;
+        
+        // Maintain current toggle state
+        setupStream.getAudioTracks().forEach(t => t.enabled = isSetupMicOn);
+        setupStream.getVideoTracks().forEach(t => t.enabled = isSetupCamOn);
+        
+    } catch (e) {
+        showToast('❌ Failed to switch device: ' + e.message);
+    }
+}
+
+function toggleSetupMic() {
+    isSetupMicOn = !isSetupMicOn;
+    if (setupStream) {
+        setupStream.getAudioTracks().forEach(t => t.enabled = isSetupMicOn);
+    }
+    const btn = document.getElementById('sMicBtn');
+    if (btn) {
+        btn.textContent = isSetupMicOn ? '🎤' : '🔇';
+        btn.classList.toggle('off', !isSetupMicOn);
+    }
+}
+
+function toggleSetupCam() {
+    isSetupCamOn = !isSetupCamOn;
+    if (setupStream) {
+        setupStream.getVideoTracks().forEach(t => t.enabled = isSetupCamOn);
+    }
+    const btn = document.getElementById('sCamBtn');
+    if (btn) {
+        btn.textContent = isSetupCamOn ? '📷' : '🚫';
+        btn.classList.toggle('off', !isSetupCamOn);
+    }
+}
+
+function closeMediaSetup() {
+    if (setupStream) {
+        setupStream.getTracks().forEach(t => t.stop());
+        setupStream = null;
+    }
+    document.getElementById('mediaSetupOverlay').style.display = 'none';
+}
+
+function proceedToLiveSession() {
+    const { subject, perspective } = currentLobbyConfig;
+    const selectedCam = document.getElementById('videoSource').value;
+    const selectedMic = document.getElementById('audioSource').value;
+    
+    closeMediaSetup();
+    
+    // Pass configured settings to startWebRTC
+    startWebRTC(subject, perspective, { 
+        camId: selectedCam, 
+        micId: selectedMic, 
+        camEnabled: isSetupCamOn, 
+        micEnabled: isSetupMicOn 
+    });
+}
+
 async function startLiveClass() {
     const subject = document.getElementById('liveSubject').value.trim();
     if (!subject) {
@@ -781,33 +1022,106 @@ async function startLiveClass() {
         return;
     }
     
-    // Test media access first with clear error
+    // Show lobby first
+    openMediaSetup(subject, 'mentor');
+
+    // Broadcast to students (optional here, could be moved to when session actually starts)
     try {
-        const testStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        testStream.getTracks().forEach(t => t.stop()); // release test stream
-    } catch(e) {
-        alert('❌ Camera and Mic access is required to start the class.\n\nPlease allow access in your browser settings and try again.');
-        return;
-    }
-    
-    await startWebRTC(subject, 'mentor');
+        const bcLive = new BroadcastChannel('gs_live_class');
+        bcLive.postMessage({ 
+            type: 'MENTOR_LIVE', 
+            subject, 
+            mentorName: currentUser.full_name || 'Mentor' 
+        });
+    } catch(e) {}
 }
 
-// Global WebRTC Handler
-async function startWebRTC(subject, perspective) {
+// Global WebRTC & Signaling Handler
+async function startWebRTC(subject, perspective, options = {}) {
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    } catch(err) {
-        if (perspective === 'mentor') {
-            alert('❌ Camera and Mic access is required to start the class.\n\nPlease allow access in your browser settings.');
-            return;
-        } else {
-            showToast('⚠️ Camera/Mic denied. Joining in listen-only mode.');
-            showToast('ℹ️ Mentor notified: ' + currentUser.full_name + ' joined without camera/mic.');
-            localStream = null;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Your browser does not support video/audio streaming.');
         }
+        
+        showToast('🎥 Connecting to session...');
+
+        const constraints = {
+            video: options.camId ? { deviceId: { exact: options.camId }, width: { ideal: 640 }, height: { ideal: 360 } } : { width: { ideal: 640 }, height: { ideal: 360 } },
+            audio: options.micId ? { deviceId: { exact: options.micId } } : true
+        };
+        
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Apply settings from lobby
+        if (options.camEnabled === false) {
+            localStream.getVideoTracks().forEach(t => t.enabled = false);
+            isVideoMuted = true;
+        }
+        if (options.micEnabled === false) {
+            localStream.getAudioTracks().forEach(t => t.enabled = false);
+            isAudioMuted = true;
+        }
+
+        showToast('✅ Connection established!');
+    } catch(err) {
+        console.error('WebRTC startup error:', err);
+        let msg = 'Error accessing camera/microphone: ' + err.message;
+        if (err.name === 'NotAllowedError') msg = 'Permission denied. Please allow camera/mic access in your browser.';
+        if (err.name === 'NotFoundError') msg = 'No camera or microphone found on your device.';
+        
+        alert('⚠️ ' + msg);
+        showToast('❌ Live Session Failed to start properly.');
+        // Don't continue if mentor can't start stream properly
+        if (perspective === 'mentor') return;
+        localStream = null;
     }
     
+    // Connect to Signaling Server
+    if (typeof io !== 'undefined') {
+        try {
+            socket = io(SOCKET_SERVER);
+            socket.on('connect', () => {
+                console.log('Connected to signaling server:', socket.id);
+                socket.emit('join-room', { room: subject, user: currentUser.full_name, role: perspective });
+            });
+            
+            socket.on('signal', (data) => {
+                handleSignalingData(data);
+            });
+
+            socket.on('recording-ready', (data) => {
+                const autoDl = document.getElementById('lrAutoDownload');
+                if (autoDl && autoDl.checked) {
+                    showToast('📥 Auto-downloading session recording...');
+                    if (typeof saveAs !== 'undefined') {
+                        // FileSaver can't download from cross-origin direct URLs easily without blobs
+                        // but we can try to trigger a fetch or just use a link
+                        fetch(data.downloadURL)
+                            .then(res => res.blob())
+                            .then(blob => {
+                                saveAs(blob, `GramShiksha_${data.subject}.webm`);
+                            })
+                            .catch(() => {
+                                // Fallback to simple link click if fetch fails (CORS)
+                                const a = document.createElement('a');
+                                a.href = data.downloadURL;
+                                a.download = `GramShiksha_${data.subject}.webm`;
+                                a.target = '_blank';
+                                a.click();
+                            });
+                    }
+                }
+            });
+
+            socket.on('connect_error', (err) => {
+                console.warn('Socket connection error:', err);
+                showToast('⚠️ Signaling server unavailable. Using local broadcast only.');
+            });
+        } catch(e) {
+            console.error('Socket.io initialization failed:', e);
+        }
+    }
+
     // UI updates
     const overlay = document.getElementById('liveRoomOverlay');
     overlay.style.display = 'flex';
@@ -822,68 +1136,67 @@ async function startWebRTC(subject, perspective) {
         document.getElementById('lrSelfViewBox').classList.add('hidden');
     }
 
-    // Populate main view
     const mainView = document.getElementById('lrMainContent');
     if (perspective === 'student') {
-        const networkBad = Math.random() > 0.8; // 20% chance to simulate low bandwidth
-        if (networkBad) {
-            showToast('⚠️ Weak connection detected. Switched to audio-only mode.');
-            mainView.innerHTML = `
-                <div style="width:100%; height:100%; border-radius:16px; background:#111; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,0.05); color:#fff">
-                    <div style="font-size:3rem">🔊</div>
-                    <p style="margin-top:1rem; opacity:0.7">Mentor's audio is active. Video paused for bandwidth saving.</p>
-                </div>
-            `;
-        } else {
-            // Mock video feed of mentor
-            mainView.innerHTML = `
-                <video class="lr-mentor-video" autoplay muted loop playsinline>
-                    <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
-                    Your browser does not support HTML video.
-                </video>
-            `;
-        }
-    } else {
-        // Mentor side grid
-        mainView.innerHTML = `<div class="lr-student-grid" id="lrStudentGrid"></div>`;
-        const grid = document.getElementById('lrStudentGrid');
-        mockStudents.slice(0, 6).forEach(s => { // mock first 6 students
-            grid.innerHTML += `
-                <div class="student-video-tile" id="tile-${s.name.replace(/\s/g,'')}">
-                    <div class="placeholder">${s.name.charAt(0)}</div>
-                    <div class="svt-name">${s.name}</div>
-                    <div class="svt-controls">
-                        <button class="svt-btn" onclick="showToast('🎤 Muted ${s.name}')">Mute</button>
-                        <button class="svt-btn" onclick="removeStudentFromSession('${s.name}')" style="background:var(--rose)">Remove</button>
+        mainView.innerHTML = `
+            <div class="lr-mentor-stream">
+                <video id="remoteVideo" autoplay playsinline style="width:100%; height:100%; object-fit:cover; border-radius:12px;"></video>
+                <div class="stream-overlay">
+                    <div class="stream-status">🔴 LIVE</div>
+                    <div class="stream-mentor-info">
+                        <strong>Mentor: ${subject}</strong>
+                        <span id="connectionStatus">Connecting to mentor...</span>
                     </div>
                 </div>
-            `;
-        });
+            </div>
+        `;
         
-        // Broadcast global update conceptually
-        const statusDiv = document.getElementById('liveClassStatus');
-        if(statusDiv) {
-            statusDiv.style.display = 'block';
-            statusDiv.innerHTML = `
-                <div class="live-status-inner">
-                    <span class="live-status-dot"></span>
-                    <strong>🔴 LIVE:</strong> ${subject} 
-                </div>`;
-            document.getElementById('liveSubject').value = '';
+        // Simple-Peer as Student (Receiver)
+        if (typeof SimplePeer !== 'undefined' && localStream) {
+            myPeer = new SimplePeer({ initiator: false, stream: localStream, trickle: false });
+            myPeer.on('signal', data => {
+                if (socket) socket.emit('signal', { to: 'mentor', from: socket.id, signal: data });
+            });
+            myPeer.on('stream', stream => {
+                const remoteVideo = document.getElementById('remoteVideo');
+                if (remoteVideo) remoteVideo.srcObject = stream;
+                document.getElementById('connectionStatus').textContent = '✅ Connected';
+            });
+            myPeer.on('error', err => {
+                console.error('Peer error:', err);
+                document.getElementById('connectionStatus').textContent = '❌ Connection Error';
+            });
+        }
+    } else {
+        // Mentor side
+        mainView.innerHTML = `<div class="lr-student-grid" id="lrStudentGrid"></div>`;
+        showToast('👨‍🏫 Class Started. Waiting for students...');
+        
+        // Handle student signaling
+        if (socket) {
+            socket.on('student-joined', (data) => {
+                showToast(`👤 Student joined: ${data.user}`);
+                initiatePeerWithStudent(data.id, data.user);
+            });
         }
         
-        // Mock Auto-attendance array
-        activeLiveClass = {
-            subject: subject,
-            startTime: Date.now(),
-            attendance: mockStudents.slice(0, 6).map(s => ({ name: s.name, status: 'Present' }))
-        };
+        // Simulation fallback for grid
+        if (!socket) {
+            const grid = document.getElementById('lrStudentGrid');
+            mockStudents.slice(0, 4).forEach(s => {
+                grid.innerHTML += `
+                    <div class="student-video-tile">
+                        <div class="placeholder">${s.name.charAt(0)}</div>
+                        <div class="svt-name">${s.name} (Simulated)</div>
+                    </div>
+                `;
+            });
+        }
     }
 
-    document.getElementById('lrMicBtn').classList.remove('off');
-    document.getElementById('lrCamBtn').classList.remove('off');
-    isVideoMuted = false;
-    isAudioMuted = false;
+    document.getElementById('lrMicBtn').classList.toggle('off', isAudioMuted);
+    document.getElementById('lrCamBtn').classList.toggle('off', isVideoMuted);
+    
     currentLiveSession = { subject: subject, perspective: perspective };
     sessionSeconds = 0;
     
@@ -895,6 +1208,53 @@ async function startWebRTC(subject, perspective) {
         const timerObj = document.getElementById('lrTimerDisplay');
         if(timerObj) timerObj.textContent = `${m}:${s}`;
     }, 1000);
+}
+
+// ---- Peer Connection Helpers ----
+function initiatePeerWithStudent(studentSocketId, studentName) {
+    if (typeof SimplePeer === 'undefined' || !localStream) return;
+    
+    const p = new SimplePeer({ initiator: true, stream: localStream, trickle: false });
+    
+    p.on('signal', data => {
+        if (socket) socket.emit('signal', { to: studentSocketId, from: socket.id, signal: data });
+    });
+
+    p.on('stream', stream => {
+        // Mentor doesn't necessarily need to see all student videos in high-quality
+        // But we add it to the grid for visibility
+        const grid = document.getElementById('lrStudentGrid');
+        if (grid) {
+            const tileId = `tile-${studentSocketId}`;
+            if (!document.getElementById(tileId)) {
+                grid.innerHTML += `
+                    <div class="student-video-tile" id="${tileId}">
+                        <video id="vid-${studentSocketId}" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
+                        <div class="svt-name">${studentName}</div>
+                    </div>
+                `;
+                setTimeout(() => {
+                    const vid = document.getElementById(`vid-${studentSocketId}`);
+                    if (vid) vid.srcObject = stream;
+                }, 100);
+            }
+        }
+    });
+
+    peers[studentSocketId] = p;
+}
+
+function handleSignalingData(data) {
+    // data: { from, signal }
+    if (currentLiveSession && currentLiveSession.perspective === 'student') {
+        if (myPeer && data.from === 'mentor') {
+            myPeer.signal(data.signal);
+        }
+    } else {
+        // Mentor side
+        const p = peers[data.from];
+        if (p) p.signal(data.signal);
+    }
 }
 
 function removeStudentFromSession(name) {
@@ -918,6 +1278,9 @@ function toggleLRMic() {
 }
 
 function leaveLiveRoom() {
+    if (typeof isRecording !== 'undefined' && isRecording) {
+        stopSessionRecording();
+    }
     const overlay = document.getElementById('liveRoomOverlay');
     overlay.classList.remove('active');
     setTimeout(() => overlay.style.display = 'none', 300);
@@ -926,13 +1289,40 @@ function leaveLiveRoom() {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
     }
+    
+    // Auto-download logic
+    if (recordedChunks.length > 0) {
+        saveRecordingToFirebase();
+    }
+
     if(sessionTimer) {
         clearInterval(sessionTimer);
     }
+
+    // Cleanup Socket & Peers
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
+    if (myPeer) {
+        myPeer.destroy();
+        myPeer = null;
+    }
+    Object.keys(peers).forEach(id => {
+        peers[id].destroy();
+        delete peers[id];
+    });
     
     if (currentLiveSession && currentLiveSession.perspective === 'mentor') {
         const statusDiv = document.getElementById('liveClassStatus');
         if(statusDiv) statusDiv.style.display = 'none';
+        
+        // Broadcast end
+        try {
+            const bcLive = new BroadcastChannel('gs_live_class');
+            bcLive.postMessage({ type: 'MENTOR_OFFLINE' });
+        } catch(e) {}
+
         showToast('⏹️ Live Session Ended for Everyone. Attendance Saved.');
         if (typeof renderAttendanceRecords === 'function') renderAttendanceRecords();
     } else {
@@ -1034,13 +1424,7 @@ function rejectPermission(id) {
     }, 2000);
 }
 
-let onlinePollInterval;
-function startOnlineUsersPolling() {
-    updateOnlineUsersUI();
-    // Use local mock if backend fails
-    // onlinePollInterval = setInterval(updateOnlineUsersUI, 5000);
-}
-
+// Poll online users
 async function updateOnlineUsersUI() {
     const list = document.getElementById('onlineUsersList');
     if (!list) return;
@@ -1056,6 +1440,24 @@ async function updateOnlineUsersUI() {
             <span class="status-indicator"></span>
         </div>
     `).join('');
+}
+
+function renderStudentActivity() {
+    console.log('Rendering student activity...');
+    const list = document.getElementById('studentActivityList');
+    if (!list) return;
+    
+    // Placeholder activity
+    list.innerHTML = `
+        <div class="activity-item">
+            <div class="ai-dot active"></div>
+            <strong>New enrollment:</strong> Rahul K. joined Mathematics
+        </div>
+        <div class="activity-item">
+            <div class="ai-dot"></div>
+            <strong>Assignment:</strong> Ananya S. submitted Biology Lab
+        </div>
+    `;
 }
 
 // ============================================
@@ -1086,19 +1488,27 @@ function applyTheme() {
 // ============================================
 //  AUTHENTICATION & APP FLOW
 // ============================================
-let isSignupMode = false;
+// Auth state handled at top
 
 function toggleSignupMode() {
     isSignupMode = !isSignupMode;
     document.getElementById('authTitle').textContent = isSignupMode ? 'Create Account' : 'Welcome Back';
     document.getElementById('authSubtitle').textContent = isSignupMode ? 'Sign up to get started' : 'Sign in to continue';
     const nameField = document.getElementById('fbName');
+    const roleField = document.getElementById('fbRole');
     if(nameField) {
         nameField.style.display = isSignupMode ? 'block' : 'none';
         if(isSignupMode) nameField.setAttribute('required', 'true');
         else nameField.removeAttribute('required');
     }
-    document.getElementById('authSubmitBtn').textContent = isSignupMode ? 'Sign Up' : 'Sign In';
+    if(roleField) {
+        roleField.style.display = isSignupMode ? 'block' : 'none';
+    }
+    const submitBtn = document.getElementById('authSubmitBtn');
+    if(submitBtn) {
+        submitBtn.textContent = isSignupMode ? 'Sign Up' : 'Sign In';
+        submitBtn.disabled = false;
+    }
     document.getElementById('authToggleText').innerHTML = isSignupMode ? 
         'Already have an account? <a href="javascript:void(0)" onclick="toggleSignupMode()" style="color:var(--purple); font-weight:bold;">Sign In</a>' :
         'New mentor/student? <a href="javascript:void(0)" onclick="toggleSignupMode()" style="color:var(--purple); font-weight:bold;">Sign Up</a>';
@@ -1107,31 +1517,42 @@ function toggleSignupMode() {
 
 async function handleFirebaseAuth(e) {
     e.preventDefault();
+    console.log("🚀 Starting Auth process...");
+    
     const tos = document.getElementById('tosCheckbox').checked;
     if(!tos) {
-        document.getElementById('authErrorMsg').textContent = 'You must accept the terms of condition to continue.';
+        document.getElementById('authErrorMsg').textContent = '⚠️ Please accept the Terms of Condition to continue.';
         return;
     }
 
-    const email = document.getElementById('fbEmail').value;
+    const email = document.getElementById('fbEmail').value.trim();
     const password = document.getElementById('fbPassword').value;
     const errorDiv = document.getElementById('authErrorMsg');
     const submitBtn = document.getElementById('authSubmitBtn');
     
+    if (!email || !password) {
+        errorDiv.textContent = '⚠️ Please fill in all required fields.';
+        return;
+    }
+
     errorDiv.textContent = '';
-    submitBtn.textContent = 'Please wait...';
+    const originalBtnText = submitBtn.textContent;
+    submitBtn.textContent = 'Processing...';
     submitBtn.disabled = true;
 
     try {
         if (isSignupMode) {
-            const name = document.getElementById('fbName').value;
-            const res = await firebase.auth().createUserWithEmailAndPassword(email, password);
-            const emailLower = email.toLowerCase();
-            const mentorEmails = ['mentor1@lowbandwidth.in', 'mentor2@lowbandwidth.in'];
-            let role = 'student';
-            if (emailLower === 'admin@lowbandwidth.in') role = 'admin';
-            else if (mentorEmails.includes(emailLower)) role = 'mentor';
+            const name = document.getElementById('fbName').value.trim();
+            const role = document.getElementById('fbRole').value || 'student';
             
+            if (!name) {
+                throw new Error('Full Name is required for Sign Up.');
+            }
+
+            console.log("📝 Creating new account for:", email);
+            const res = await firebase.auth().createUserWithEmailAndPassword(email, password);
+            
+            console.log("💾 Saving profile to Firestore...");
             try {
                 await db.collection('users').doc(res.user.uid).set({
                     full_name: name,
@@ -1140,27 +1561,36 @@ async function handleFirebaseAuth(e) {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             } catch (fsErr) {
-                console.warn("Firestore save failed (likely permissions block), but auth succeeded:", fsErr);
+                console.warn("⚠️ Firestore save failed, user created in Auth anyway:", fsErr.message);
             }
-            // Auto login will trigger onAuthStateChanged
+            
+            // Local state update
+            currentUser.full_name = name;
+            currentUser.role = role;
+            currentUser.email = email;
+            
         } else {
+            console.log("🔑 Signing in as:", email);
             await firebase.auth().signInWithEmailAndPassword(email, password);
-            // Auto login will trigger onAuthStateChanged
         }
     } catch(err) {
-        errorDiv.textContent = err.message;
-        submitBtn.textContent = isSignupMode ? 'Sign Up' : 'Sign In';
+        console.error("❌ Auth Error:", err.code, err.message);
+        let userMsg = err.message;
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
+            userMsg = 'Invalid email or password. Please try again.';
+        } else if (err.code === 'auth/email-already-in-use') {
+            userMsg = 'This email is already registered. Please Sign In instead.';
+        } else if (err.code === 'auth/weak-password') {
+            userMsg = 'The password is too weak. Please use at least 6 characters.';
+        }
+        
+        errorDiv.textContent = '❌ ' + userMsg;
+        submitBtn.textContent = originalBtnText;
         submitBtn.disabled = false;
     }
 }
 
-function logout() {
-    firebase.auth().signOut().then(() => {
-        location.reload();
-    }).catch((error) => {
-        showToast("Error logging out.");
-    });
-}
+// logout is consolidated above
 
 function finalizeLogin() {
     // Update welcome text in side menu
@@ -1189,6 +1619,88 @@ function finalizeLogin() {
 
         showToast('✅ Welcome, ' + currentUser.full_name + '! Happy learning 🚀');
     }, 100);
+}
+
+function startOnlineUsersPolling() {
+    updateOnlineUsersUI();
+    if(window._onlinePolling) clearInterval(window._onlinePolling);
+    window._onlinePolling = setInterval(() => {
+        updateOnlineUsersUI();
+        if (currentUser.role === 'mentor') renderStudentActivity();
+    }, 30000); // 30 seconds
+}
+
+// Consolidated Authentication Logic
+function initFirebaseLoginCheck() {
+    console.log("🔐 Initializing Firebase Auth listener...");
+    firebase.auth().onAuthStateChanged(async (user) => {
+        const lw = document.getElementById('loginWrapper');
+        if (user) {
+            console.log("👤 User detected:", user.email);
+            try {
+                showToast('🔐 Authenticating user profile...');
+                currentUser.email = user.email;
+                const emailLower = user.email.toLowerCase();
+                
+                // 1. Try to fetch user profile from Firestore
+                try {
+                    const doc = await db.collection('users').doc(user.uid).get();
+                    if(doc.exists) {
+                        const data = doc.data();
+                        currentUser.full_name = data.full_name || 'User';
+                        currentUser.role = data.role || 'student';
+                        currentUser.email = data.email || user.email;
+                        console.log("✅ Profile loaded from Firestore:", currentUser.role);
+                    } else {
+                        throw new Error('No profile document found in Firestore.');
+                    }
+                } catch (dbErr) {
+                    console.warn("⚠️ Firestore profile fetch failed, using fallback roles:", dbErr.message);
+                    // Fallback roles based on email patterns
+                    if (emailLower === 'admin@gramshiksha.in' || emailLower === 'admin@lowbandwidth.in') {
+                        currentUser.role = 'admin';
+                        currentUser.full_name = 'Administrator';
+                    } else if (emailLower.includes('mentor')) {
+                        currentUser.role = 'mentor';
+                        currentUser.full_name = 'Mentor';
+                    } else {
+                        currentUser.role = 'student';
+                        currentUser.full_name = 'Student';
+                    }
+                    showToast('⚠️ Using local profile fallback.');
+                }
+
+                // 2. Log login event (swallow errors if fails)
+                db.collection('logins').add({
+                    uid: user.uid,
+                    email: user.email,
+                    role: currentUser.role,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                }).catch(e => console.warn('Login logging failed:', e));
+
+                // 3. Finalize Login UI
+                finalizeLogin();
+            } catch(e) {
+                console.error("❌ Critical Auth initialization failure:", e);
+                if(lw) lw.style.display = 'flex';
+                showToast('❌ Auth Error: ' + e.message);
+            }
+        } else {
+            console.log("🚪 No active user session.");
+            if(lw) {
+                lw.style.display = 'flex';
+                // Reset to Sign In mode by default
+                isSignupMode = true; // Set to true so toggle flips it to false
+                toggleSignupMode(); 
+            }
+            // Hide all dashboard elements
+            if (navbar) navbar.style.display = 'none';
+            const mc = document.getElementById('mainContent');
+            if (mc) mc.style.display = 'none';
+            const fab = document.getElementById('chatbotFab');
+            if (fab) fab.style.display = 'none';
+        }
+    });
 }
 
 // ============================================
@@ -1221,59 +1733,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initFirebaseLoginCheck();
     }
 
-    function initFirebaseLoginCheck() {
-        firebase.auth().onAuthStateChanged(async (user) => {
-            if (user) {
-                try {
-                    currentUser.email = user.email;
-                    const emailLower = user.email.toLowerCase();
-                    const mentorEmails = ['mentor1@lowbandwidth.in', 'mentor2@lowbandwidth.in'];
-                    
-                    // Base fallback roles
-                    if (emailLower === 'admin@lowbandwidth.in') {
-                        currentUser.role = 'admin';
-                        currentUser.full_name = 'Administrator';
-                    } else if (mentorEmails.includes(emailLower)) {
-                        currentUser.role = 'mentor';
-                        currentUser.full_name = 'Mentor';
-                    } else {
-                        currentUser.role = 'student';
-                        currentUser.full_name = 'Student';
-                    }
 
-                    // Attempt to enrich with Firestore data
-                    try {
-                        const doc = await db.collection('users').doc(user.uid).get();
-                        if(doc.exists) {
-                            currentUser.full_name = doc.data().full_name || currentUser.full_name;
-                            currentUser.role = doc.data().role || currentUser.role;
-                        }
-                    } catch (fsErr) {
-                        console.warn("Could not read user profile from Firestore:", fsErr);
-                    }
-                    
-                    // tracking
-                    try {
-                        await db.collection('logins').add({
-                            uid: user.uid,
-                            email: user.email,
-                            role: currentUser.role,
-                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                    } catch (fsErr) {
-                        console.warn("Could not write login log to Firestore:", fsErr);
-                    }
-                    
-                    finalizeLogin();
-                } catch(e) {
-                    console.error("Critical error in login pipeline:", e);
-                    document.getElementById('loginWrapper').style.display = 'flex';
-                }
-            } else {
-                document.getElementById('loginWrapper').style.display = 'flex';
-            }
-        });
-    }
 
     // Intersection Observer for progress bars
     const observer = new IntersectionObserver((entries) => {
@@ -2336,6 +2796,7 @@ function manualAINetworkCheck() {
         }
     }, 2000);
 }
+// ============================================
 //  STUDENT PANEL - LIVE CLASS FOCUS RULE
 // ============================================
 
@@ -2343,8 +2804,7 @@ let absenceTimeout = null;
 let absenceCountdownInt = null;
 
 async function joinClass(subjectName) {
-    showToast('Joining room...', false);
-    await startWebRTC(subjectName, 'student');
+    openMediaSetup(subjectName, 'student');
 }
 
 // STRICT FOCUS RULE: Monitor page visibility
@@ -2433,3 +2893,246 @@ Provide a clear, brief, educational answer.`;
     container.scrollTop = container.scrollHeight;
 }
 
+// ============================================
+//  SESSION RECORDING — MediaRecorder API + Firebase Storage
+// ============================================
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+let currentRecordingSubject = '';
+
+function toggleSessionRecording() {
+    if (isRecording) {
+        stopSessionRecording();
+    } else {
+        startSessionRecording();
+    }
+}
+
+function startSessionRecording() {
+    if (!localStream) {
+        showToast('⚠️ No active camera/mic stream to record!');
+        return;
+    }
+    recordedChunks = [];
+    currentRecordingSubject = currentLiveSession ? currentLiveSession.subject : 'Session';
+
+    try {
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+            ? 'video/webm;codecs=vp9'
+            : (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : '');
+
+        const options = mimeType ? { mimeType } : {};
+        mediaRecorder = new MediaRecorder(localStream, options);
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => { saveRecordingToFirebase(); };
+
+        mediaRecorder.start(1000);
+        isRecording = true;
+
+        const recBtn = document.getElementById('lrRecordBtn');
+        if (recBtn) {
+            recBtn.style.background = 'var(--rose)';
+            recBtn.textContent = '⏹️';
+            recBtn.title = 'Stop Recording';
+        }
+        const statusEl = document.getElementById('lrRecordingStatus');
+        if (statusEl) statusEl.style.display = 'flex';
+
+        showToast('⏺️ Recording started!');
+    } catch (err) {
+        showToast('❌ Could not start recording: ' + err.message);
+        console.error('Recording error:', err);
+    }
+}
+
+function stopSessionRecording() {
+    if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+
+        const recBtn = document.getElementById('lrRecordBtn');
+        if (recBtn) {
+            recBtn.style.background = '';
+            recBtn.textContent = '⏺️';
+            recBtn.title = 'Start Recording';
+        }
+        const statusEl = document.getElementById('lrRecordingStatus');
+        if (statusEl) statusEl.style.display = 'none';
+
+        showToast('⏹️ Recording stopped. Saving...');
+    }
+}
+
+async function saveRecordingToFirebase() {
+    if (recordedChunks.length === 0) { showToast('⚠️ No data to save!'); return; }
+
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const safeSubject = currentRecordingSubject.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    const fileName = `GramShiksha_${safeSubject}_${timestamp}.webm`;
+
+    // Local download using FileSaver.js (if auto-download is enabled)
+    const autoDl = document.getElementById('lrAutoDownload');
+    if (autoDl && autoDl.checked) {
+        try {
+            if (typeof saveAs !== 'undefined') {
+                saveAs(blob, fileName);
+                showToast('📥 Recording auto-downloaded via FileSaver!');
+            } else {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                showToast('📥 Recording downloaded!');
+            }
+        } catch (dlErr) { console.warn('Local download failed:', dlErr); }
+    }
+
+    // Upload to Firebase Storage
+    try {
+        const storageRef = storage.ref(fileName);
+        const metadata = {
+            contentType: 'video/webm',
+            customMetadata: {
+                subject: currentRecordingSubject,
+                mentorName: currentUser.full_name,
+                recordedAt: new Date().toISOString()
+            }
+        };
+
+        const uploadTask = storageRef.put(blob, metadata);
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+                if (pct % 20 === 0) showToast(`☁️ Uploading to Firebase: ${pct}%`);
+            },
+            (error) => {
+                console.warn('Firebase Storage upload error:', error);
+                showToast('⚠️ Cloud upload failed — local copy was saved.');
+            },
+            async () => {
+                try {
+                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    await db.collection('recordings').add({
+                        subject: currentRecordingSubject,
+                        mentorName: currentUser.full_name,
+                        mentorId: firebase.auth().currentUser?.uid || 'unknown',
+                        downloadURL: downloadURL,
+                        storagePath: fileName,
+                        recordedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        status: 'available'
+                    });
+                    
+                    // Notify students via socket
+                    if (socket && currentLiveSession && currentLiveSession.perspective === 'mentor') {
+                        socket.emit('recording-ready', { 
+                            downloadURL: downloadURL, 
+                            subject: currentRecordingSubject,
+                            fileName: fileName
+                        });
+                    }
+                    
+                    showToast('✅ Recording uploaded to Firebase! Students can access it from History.');
+                } catch (fsErr) {
+                    console.warn('Firestore metadata save failed:', fsErr);
+                    showToast('✅ Recording uploaded to Storage (metadata save skipped).');
+                }
+            }
+        );
+    } catch (err) {
+        console.warn('Firebase Storage N/A:', err.message);
+        showToast('⚠️ Firebase Storage not configured. Local copy was saved.');
+    }
+
+    recordedChunks = [];
+}
+
+// ============================================
+//  STUDENT: REFRESH HISTORY FROM FIREBASE
+// ============================================
+async function refreshHistoryFromFirebase() {
+    const container = document.getElementById('firebaseHistoryCards');
+    if (!container) return;
+
+    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.9rem">
+        🔄 Loading recordings from Firebase...
+    </div>`;
+
+    try {
+        const snap = await db.collection('recordings')
+            .orderBy('recordedAt', 'desc')
+            .limit(20)
+            .get();
+
+        if (snap.empty) {
+            container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.9rem">
+                💬 No cloud recordings yet. Mentors can record live sessions and upload them here.
+            </div>`;
+            return;
+        }
+
+        let html = '';
+        let cloudCount = 0;
+        snap.forEach(doc => {
+            const r = doc.data();
+            const dateStr = r.recordedAt
+                ? new Date(r.recordedAt.seconds * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                : 'Unknown date';
+            cloudCount++;
+            html += `
+            <div class="history-session-card" data-status="present">
+                <div class="hsc-top">
+                    <div class="hsc-icon-wrap" style="background:linear-gradient(135deg,#0ea5e9,#7c3aed)">
+                        <span>🎥</span>
+                    </div>
+                    <div class="hsc-details">
+                        <div class="hsc-title">${escapeHtml(r.subject || 'Class Recording')}</div>
+                        <div class="hsc-meta">
+                            <span>📅 ${dateStr}</span>
+                            <span>👨‍🏫 ${escapeHtml(r.mentorName || 'Mentor')}</span>
+                            <span>☁️ Firebase Cloud</span>
+                        </div>
+                    </div>
+                    <span class="status-badge status-present hsc-badge">🎥 Cloud</span>
+                </div>
+                <div class="hsc-actions">
+                    <a href="${r.downloadURL}" download target="_blank" class="hsc-download-btn">
+                        <span>📥</span> Download Recording
+                    </a>
+                    <span class="hsc-size-label">WebM • Cloud</span>
+                </div>
+            </div>`;
+        });
+
+        container.innerHTML = html;
+        const dlCount = document.getElementById('historyDownloadCount');
+        if (dlCount) dlCount.textContent = cloudCount + 1;
+        showToast(`✅ ${cloudCount} cloud recording(s) loaded!`);
+
+    } catch (err) {
+        console.warn('Firebase History fetch failed:', err);
+        container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:#f59e0b; font-size:0.85rem">
+            ⚠️ Could not load cloud recordings. Check your internet connection.
+        </div>`;
+    }
+}
+
+// Note: leaveLiveRoom automatically stops recording via stopSessionRecording()
+// call inside the function itself (see leaveLiveRoom above).
+// The isRecording check is already integrated via the toggleSessionRecording flow.
+// Utility to escape HTML and prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
